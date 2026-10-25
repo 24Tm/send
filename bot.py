@@ -21,7 +21,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "أنا بوت تحليل الأسهم المطور. أرسل لي أي رقم أو رمز سهم (مثل `1820` لبنك البلاد أو `1120`) وسأعطيك:\n\n"
         "• السعر الحالي ونسبة التغير 📊\n"
         "• أفضل منطقة شراء (دعم) 🟢\n"
-        "• أهداف الخروج (الأهداف والهدف الثاني) 🎯\n"
+        "• أهداف الخروج (الهدف الأول والثاني) 🎯\n"
         "• نقطة وقف الخسارة 🛑\n"
         "• مؤشر الزخم RSI واتجاه المتوسط EMA 📈\n\n"
         "💡 **الأوامر:**\n"
@@ -93,7 +93,7 @@ async def handle_stock(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         display_symbol = f"Tadawul: {ticker_symbol.replace('.SR', '').replace('.SA', '')}"
 
-        # تجهيز الرسالة الشاملة بجميع التفاصيل والمميزات التي طلبتها
+        # تجهيز الرسالة الشاملة بجميع التفاصيل
         response = (
             f"📊 **التقرير الفني الشامل للسهم: `{display_symbol}`**\n\n"
             f"• **السعر الحالي:** `{current_price:.2f}` ريال\n"
@@ -114,7 +114,7 @@ async def handle_stock(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.error(f"Error handling stock {text}: {e}")
         await update.message.reply_text("حدث خطأ أثناء معالجة بيانات السهم الفنية.")
 
-# دالة التنبيهات التلقائية في الخلفية (الرسائل التي ترسل من ذاتها)
+# دالة التنبيهات التلقائية في الخلفية
 async def check_market_explosions(context: ContextTypes.DEFAULT_TYPE):
     job = context.job
     chat_id = job.chat_id
