@@ -1,95 +1,73 @@
 import os
-import pandas as pd
-import pandas_ta as ta
+import telegram
 from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
+from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, MessageHandler, filters
 import yfinance as yf
+import pandas as pd
 
-# قراءة توكن البوت من متغيرات البيئة بأمان
-TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+# قراءة التوكن من متغيرات البيئة التي أضفناها في Render
+TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 
-
+# دالة بداية التشغيل /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-  await update.message.reply_text(
-    "أهلاً بك! استخدم الأمر هكذا لتحليل أي سهم:\n`/analyze 1120.SR`\nمثال:"
-    " الأسهم السعودية تضاف لها `.SR`",
-    parse_mode="Markdown",
-  )
-
-
-async def analyze(update: Update, context: ContextTypes.DEFAULT_TYPE):
-  if not context.args:
     await update.message.reply_text(
-      "الرجاء كتابة رمز السهم بجانب الأمر. مثال:\n`/analyze 1120.SR`",
-      parse_mode="Markdown",
-    )
-    return
-
-  symbol = context.args[0].upper()
-  await update.message.reply_text(
-    f"⏳ جاري جلب بيانات السهم `{symbol}` وتحليله فنياً..."
-  )
-
-  try:
-    # جلب بيانات السهم آخر 6 أشهر
-    df = yf.download(symbol, period="6mo", interval="1d", progress=False)
-
-    if df.empty:
-      await update.message.reply_text(
-        "❌ لم أتمكن من العثور على بيانات لهذا السهم. تأكد من الرمز الصحيح (مثال:"
-        " 1120.SR لمصرف الراجحي)."
-      )
-      return
-
-    # حساب المؤشرات الفنية
-    df["SMA_50"] = ta.sma(df["Close"], length=50)
-    df["SMA_200"] = ta.sma(df["Close"], length=200)
-    df["RSI"] = ta.rsi(df["Close"], length=14)
-
-    last_close = float(df["Close"].iloc[-1])
-    last_rsi = float(df["RSI"].iloc[-1])
-    sma_50 = (
-      float(df["SMA_50"].iloc[-1]) if not pd.isna(df["SMA_50"].iloc[-1]) else 0
+        "مرحباً بك! 📈\n"
+        "أنا بوت تحليل الأسهم. أرسل لي رمز السهم (مثل AAPL أو TSLA أو MSFT) وسأعطيك آخر سعر تحليل سريع له."
     )
 
-    # منطق التوصيات
-    if last_rsi < 30 and last_close > sma_50:
-      recommendation = "🟢 **دخول مضارب** (تشبع بيعي مع ارتداد محتمل)"
-    elif last_rsi > 70:
-      recommendation = "🔴 **خروج / جني أرباح** (تشبع شرائي)"
-    elif last_close > sma_50:
-      recommendation = "🔵 **شراء** (اتجاه صاعد مستقر)"
-    else:
-      recommendation = "⚠️ **حياد / مراقبة** (سلبية أو تذبذب)"
+# دالة تحليل السهم عند إرسال الرمز
+async def analyze_stock(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = update.message.text.strip().upper()
+    
+    # تجنب الرد على الكلمات الطويلة جداً
+    if len(text) > 10:
+        return
 
-    report = f"""
-📊 **تقرير تحليل السهم: {symbol}**
-------------------
-💰 سعر الإغلاق: `{last_close:.2f}`
-📈 مؤشر القوة النسبي (RSI): `{last_rsi:.2f}`
-🎯 **التوصية:** {recommendation}
-    """
-    await update.message.reply_text(report, parse_mode="Markdown")
+    await update.message.reply_text(f"جاري جلب بيانات السهم `{text}`... ⏳")
 
-  except Exception as e:
-    await update.message.reply_text(
-      f"حدث خطأ أثناء معالجة البيانات: {str(e)}"
-    )
+    try:
+        # جلب بيانات السهم عبر yfinance
+        stock = yf.Ticker(text)
+        hist = stock.history(period="1mo")
+        
+        if hist.empty:
+            await update.message.reply_text(f"عذراً، لم أتمكن من العثور على بيانات للسهم: `{text}`. تأكد من صحة الرمز.")
+            return
 
+        current_price = hist['Close'].iloc[-1]
+        prev_close = hist['Close'].iloc[-2] if len(hist) > 1 else current_price
+        change = current_price - prev_close
+        change_pct = (change / prev_close) * 100
+
+        # حساب المتوسط المتحرك البسيط لمدة 5 أيام عبر pandas العادية
+        sma_5 = hist['Close'].rolling(window=5).mean().iloc[-1]
+
+        # صياغة رسالة الرد
+        msg = (
+            f"📊 **تحليل السهم: {text}**\n\n"
+            f"💰 السعر الحالي: `{current_price:.2f}`\n"
+            f"📉 التغير: `{change:+.2f}` (`{change_pct:+.2f}%`)\n"
+            f"📈 المتوسط المتحرك (5 أيام): `{sma_5:.2f}`\n"
+        )
+        
+        await update.message.reply_text(msg, parse_mode="Markdown")
+
+    except Exception as e:
+        await update.message.reply_text("حدث خطأ أثناء جلب بيانات السهم. حاول مرة أخرى لاحقاً.")
 
 def main():
-  if not TOKEN:
-    print("خطأ: يرجى تحديد توكن البوت في متغيرات البيئة.")
-    return
+    if not TOKEN:
+        print("Error: TELEGRAM_BOT_TOKEN is not set.")
+        return
 
-  app = ApplicationBuilder().token(TOKEN).build()
+    # بناء وتشغيل البوت
+    application = ApplicationBuilder().token(TOKEN).build()
 
-  app.add_handler(CommandHandler("start", start))
-  app.add_handler(CommandHandler("analyze", analyze))
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), analyze_stock))
 
-  print("البوت يعمل الآن...")
-  app.run_polling()
-
+    print("Bot is running...")
+    application.run_polling()
 
 if __name__ == "__main__":
-  main()
+    main()
