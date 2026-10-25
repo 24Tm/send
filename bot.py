@@ -1,10 +1,14 @@
 import os
 import logging
+import io
 import yfinance as yf
 import pandas as pd
-from telegram import Update
+import matplotlib
+matplotlib.use('Agg') # لمنع فتح واجهة رسومية على السيرفر
+import matplotlib.pyplot as plt
+from telegram import Update, InputFile
 from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, MessageHandler, filters
- 
+
 # إعداد السجلات
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -12,21 +16,18 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# قائمة الأسهم الافتراضية للمراقبة التلقائية في الخلفية
 WATCHLIST_SYMBOLS = ["1120.SR", "1180.SR", "2222.SR", "1010.SR", "1820.SR"]
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     welcome_message = (
         "مرحباً بك يا غالي! 🚀\n\n"
-        "أنا بوت تحليل الأسهم المطور. أرسل لي أي رقم أو رمز سهم (مثل `1820` لبنك البلاد أو `1120`) وسأعطيك:\n\n"
-        "• السعر الحالي ونسبة التغير 📊\n"
-        "• أفضل منطقة شراء (دعم) 🟢\n"
-        "• أهداف الخروج (الهدف الأول والثاني) 🎯\n"
-        "• نقطة وقف الخسارة 🛑\n"
-        "• مؤشر الزخم RSI واتجاه المتوسط EMA 📈\n\n"
+        "أنا بوت تحليل الأسهم المطور. أرسل لي أي رقم أو رمز سهم (مثل `1820`) وسأعطيك:\n\n"
+        "• **صورة الشارت الفني المطور** جاهزة للنشر 📊\n"
+        "• السعر الحالي ونسبة التغير ومناطق الدخول والخروج 🟢🎯\n"
+        "• مؤشر RSI واتجاه المتوسط EMA 📈\n\n"
         "💡 **الأوامر:**\n"
-        "• أرسل رقم السهم مباشرة للتحليل الشامل.\n"
-        "• أرسل الأمر `/monitor` لتفعيل التنبيهات التلقائية للفرص في الخلفية."
+        "• أرسل رقم السهم مباشرة للحصول على التحليل مع الشارت كصورة.\n"
+        "• أرسل الأمر `/monitor` لتفعيل التنبيهات التلقائية في الخلفية."
     )
     await update.message.reply_text(welcome_message)
 
@@ -59,13 +60,48 @@ def calculate_rsi(series, period=14):
     rsi = 100 - (100 / (1 + rs))
     return rsi.iloc[-1]
 
+def generate_chart_image(hist, ticker_symbol, current_price, buy_zone_low, target_1, stop_loss):
+    """دالة لرسم الشارت وتصديره كصورة جاهزة"""
+    fig, ax = plt.subplots(figsize=(10, 6), facecolor='#121212')
+    ax.set_facecolor('#1e1e1e')
+
+    # رسم خط السعر
+    ax.plot(hist.index, hist['Close'], color='#00ffcc', linewidth=2, label='السعر (Close)')
+    
+    # حساب المتوسط المتحرك EMA 50 للرسم
+    ema_50 = hist['Close'].ewm(span=50, adjust=False).mean()
+    ax.plot(hist.index, ema_50, color='#ff9900', linewidth=1.5, linestyle='--', label='EMA 50')
+
+    # خطوط المستويات الحسابية
+    ax.axhline(y=current_price, color='#ffffff', linestyle=':', alpha=0.7, label=f'السعر الحالي: {current_price}')
+    ax.axhline(y=buy_zone_low, color='#00ff00', linestyle='-', alpha=0.8, label=f'منطقة الشراء: {buy_zone_low}')
+    ax.axhline(y=target_1, color='#00bfff', linestyle='-', alpha=0.8, label=f'الهدف الأول: {target_1}')
+    ax.axhline(y=stop_loss, color='#ff4d4d', linestyle='-', alpha=0.8, label=f'وقف الخسارة: {stop_loss}')
+
+    clean_symbol = ticker_symbol.replace('.SR', '').replace('.SA', '')
+    ax.set_title(f"Tadawul Analysis: {clean_symbol}", color='white', fontsize=14, fontweight='bold', pad=15)
+    ax.tick_params(colors='white', labelsize=10)
+    ax.grid(True, color='#333333', linestyle='--', alpha=0.5)
+    
+    legend = ax.legend(loc='upper left', facecolor='#2d2d2d', edgecolor='none')
+    for text in legend.get_texts():
+        text.set_color('white')
+
+    plt.tight_layout()
+    
+    buf = io.BytesIO()
+    plt.savefig(buf, format='png', dpi=150, facecolor=fig.get_facecolor(), edgecolor='none')
+    buf.seek(0)
+    plt.close(fig)
+    return buf
+
 async def handle_stock(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.strip().upper()
-    await update.message.reply_text(f"جاري جلب وتحليل كافة البيانات الفنية للسهم `{text}` ... ⏳")
+    await update.message.reply_text(f"جاري سحب البيانات ورسم الشارت الفني للسهم `{text}` ... ⏳")
 
     hist, ticker_symbol = fetch_stock_data(text)
     if hist is None or hist.empty:
-        await update.message.reply_text(f"عذراً، لم أتمكن من العثور على بيانات صحيحة للسهم: `{text}`. تأكد من صحة الرمز.")
+        await update.message.reply_text(f"عذراً، لم أتمكن من العثور على بيانات للسهم: `{text}`.")
         return
 
     try:
@@ -74,7 +110,6 @@ async def handle_stock(update: Update, context: ContextTypes.DEFAULT_TYPE):
         change = current_price - prev_close
         change_pct = (change / prev_close) * 100
 
-        # حساب الدعوم والمقاومات
         support_level = hist['Low'].tail(10).min()
         resistance_level = hist['High'].tail(10).max()
 
@@ -84,7 +119,6 @@ async def handle_stock(update: Update, context: ContextTypes.DEFAULT_TYPE):
         target_2 = round(max(resistance_level, current_price * 1.06), 2)
         stop_loss = round(buy_zone_low * 0.97, 2)
 
-        # حساب مؤشرات الزخم المتقدمة
         rsi_val = calculate_rsi(hist['Close'])
         ema_50 = hist['Close'].ewm(span=50, adjust=False).mean().iloc[-1]
 
@@ -93,28 +127,29 @@ async def handle_stock(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         display_symbol = f"Tadawul: {ticker_symbol.replace('.SR', '').replace('.SA', '')}"
 
-        # تجهيز الرسالة الشاملة بجميع التفاصيل
-        response = (
+        # توليد الشارت كصورة
+        chart_buf = generate_chart_image(hist, ticker_symbol, current_price, buy_zone_low, target_1, stop_loss)
+
+        # النص التوضيحي المرافق للصورة
+        caption = (
             f"📊 **التقرير الفني الشامل للسهم: `{display_symbol}`**\n\n"
             f"• **السعر الحالي:** `{current_price:.2f}` ريال\n"
             f"• **التغير:** `{change:+.2f} ({change_pct:+.2f}%)`\n\n"
-            f"🎯 **مستويات التداول (الدخول والخروج):**\n"
+            f"🎯 **مستويات التداول:**\n"
             f"• 🟢 **منطقة الشراء:** `{buy_zone_low} - {buy_zone_high}`\n"
-            f"• 🎯 **الهدف الأول (خروج):** `{target_1}`\n"
-            f"• 🚀 **الهدف الثاني (خروج):** `{target_2}`\n"
+            f"• 🎯 **الهدف الأول:** `{target_1}` | **الهدف الثاني:** `{target_2}`\n"
             f"• 🛑 **وقف الخسارة:** `{stop_loss}`\n\n"
-            f"📉 **تحليل الزخم والقوة (مؤشرات متقدمة):**\n"
-            f"• **مؤشر RSI:** `{rsi_val:.1f}` ({rsi_status})\n"
-            f"• **اتجاه المتوسط (EMA 50):** {trend_status}\n\n"
-            f"⚠️ *ملاحظة: هذا التحليل آلي للاستئناس وليست توصية مباشرة.*"
+            f"📉 **الزخم:** RSI: `{rsi_val:.1f}` ({rsi_status}) | الاتجاه: {trend_status}\n\n"
+            f"📸 *هذه الصورة والشارت جاهزتان للمشاركة والنشر مباشرة!*"
         )
-        await update.message.reply_text(response, parse_mode="Markdown")
+
+        # إرسال الصورة ومعها النص
+        await update.message.reply_photo(photo=InputFile(chart_buf, filename="chart.png"), caption=caption, parse_mode="Markdown")
 
     except Exception as e:
         logger.error(f"Error handling stock {text}: {e}")
-        await update.message.reply_text("حدث خطأ أثناء معالجة بيانات السهم الفنية.")
+        await update.message.reply_text("حدث خطأ أثناء رسم الشارت ومعالجة بيانات السهم.")
 
-# دالة التنبيهات التلقائية في الخلفية
 async def check_market_explosions(context: ContextTypes.DEFAULT_TYPE):
     job = context.job
     chat_id = job.chat_id
@@ -134,7 +169,7 @@ async def check_market_explosions(context: ContextTypes.DEFAULT_TYPE):
                     f"🚨🔥 **تنبيه تلقائي: فرصة ارتداد قوية!**\n\n"
                     f"• السهم: `Tadawul: {ticker_symbol.replace('.SR', '')}`\n"
                     f"• السعر الحالي: `{current_price:.2f}` ريال\n"
-                    f"• السهم يرتكز قرب الدعم بنسبة `{distance_from_support:.2f}%` مع مؤشر RSI منخفض (`{rsi_val:.1f}`)."
+                    f"• يرتكز قرب الدعم بنسبة `{distance_from_support:.2f}%` مع RSI منخفض (`{rsi_val:.1f}`)."
                 )
                 await context.bot.send_message(chat_id=chat_id, text=alert_msg, parse_mode="Markdown")
         except Exception as e:
@@ -144,11 +179,11 @@ async def start_monitoring(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     current_jobs = context.job_queue.get_jobs_by_name(str(chat_id))
     if current_jobs:
-        await update.message.reply_text("المراقبة التلقائية مفعلة لديك مسبقاً وأنا أراقب السوق بالخلفية! 🟢")
+        await update.message.reply_text("المراقبة التلقائية مفعلة لديك مسبقاً! 🟢")
         return
 
     context.job_queue.run_repeating(check_market_explosions, interval=3600, first=10, chat_id=chat_id, name=str(chat_id))
-    await update.message.reply_text("✅ تم تفعيل **المراقبة الذاتية التلقائية** بنجاح! سأراسلك فوراً عند رصد أي فرصة انفجار أو ارتداد في السوق.")
+    await update.message.reply_text("✅ تم تفعيل **المراقبة الذاتية** بنجاح وسأراسلك بالفرص فوراً!")
 
 def main():
     token = os.getenv("TELEGRAM_BOT_TOKEN")
@@ -161,7 +196,7 @@ def main():
     application.add_handler(CommandHandler("monitor", start_monitoring))
     application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_stock))
 
-    print("Bot is running with full features...")
+    print("Bot is running with Chart generation feature...")
     application.run_polling()
 
 if __name__ == '__main__':
