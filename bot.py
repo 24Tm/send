@@ -26,7 +26,7 @@ app_web = Flask('')
 
 @app_web.route('/')
 def home():
-    return "Bot is active and running 24/7[span_1](start_span)!"[span_1](end_span)
+    return "Bot is active and running 24/7!"
 
 def run_web():
     app_web.run(host='0.0.0.0', port=int(os.environ.get("PORT", 8080)))
@@ -41,12 +41,13 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     await update.message.reply_text(welcome_message)
 
-# دالة جلب البيانات الآمنة باستخدام Session لمنع الحظر وجلب البيانات بدقة
+# دالة جلب البيانات مع إعطاء الأولوية لللاحقة الصحيحة .SR في السوق السعودي
 def fetch_stock_data(text):
     text = text.strip().upper()
     possible_symbols = []
     
     if text.isdigit():
+        # الأولوية لللاحقة .SR المعتمدة في ياهو فاينانس للأسهم السعودية
         possible_symbols = [f"{text}.SR", f"{text}.SA", text]
     elif text.endswith("SR") and not text.endswith(".SR"):
         base = text[:-2].strip()
