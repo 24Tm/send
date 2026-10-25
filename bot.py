@@ -1,37 +1,45 @@
 import os
-import telegram
+import logging
+import yfinance as yf
 from telegram import Update
 from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, MessageHandler, filters
-import yfinance as yf
-import pandas as pd
 
-# قراءة التوكن من متغيرات البيئة التي أضفناها في Render
-TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
+# إعداد السجلات (Logging)
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.INFO
+)
+logger = logging.getLogger(__name__)
 
-# دالة بداية التشغيل /start
+# دالة رسالة الترحيب /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "مرحباً بك! 📈\n"
-        "أنا بوت تحليل الأسهم. أرسل لي رمز السهم (مثل AAPL أو TSLA أو MSFT) وسأعطيك آخر سعر تحليل سريع له."
+    welcome_message = (
+        "مرحباً بك! 📈\n\n"
+        "أنا بوت تحليل الأسهم. أرسل لي رمز السهم "
+        "(مثل `AAPL` أو `TSLA` للأسهم الأمريكية، أو أرسل رقم السهم السعودي مثل `1820`) "
+        "وسأعطيك آخر سعر تحليل سريع له."
     )
+    await update.message.reply_text(welcome_message)
 
-# دالة تحليل السهم عند إرسال الرمز
-async def analyze_stock(update: Update, context: ContextTypes.DEFAULT_TYPE):
+# دالة استقبال رموز الأسهم ومعالجتها
+async def handle_stock(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.strip().upper()
     
-    # تجنب الرد على الكلمات الطويلة جداً
-    if len(text) > 10:
-        return
+    # دعم الأسهم السعودية: إذا كان المدخل أرقاماً فقط، أضف له .SR تلقائياً
+    if text.isdigit():
+        ticker_symbol = f"{text}.SR"
+    else:
+        ticker_symbol = text
 
-    await update.message.reply_text(f"جاري جلب بيانات السهم `{text}`... ⏳")
+    await update.message.reply_text(f"جاري جلب بيانات السهم `{ticker_symbol}` ... ⏳")
 
     try:
-        # جلب بيانات السهم عبر yfinance
-        stock = yf.Ticker(text)
-        hist = stock.history(period="1mo")
-        
+        # جلب بيانات السهم باستخدام yfinance
+        stock = yf.Ticker(ticker_symbol)
+        hist = stock.history(period="5d")
+
         if hist.empty:
-            await update.message.reply_text(f"عذراً، لم أتمكن من العثور على بيانات للسهم: `{text}`. تأكد من صحة الرمز.")
+            await update.message.reply_text(f"عذراً، لم أتمكن من العثور على بيانات للسهم: `{ticker_symbol}`. تأكد من صحة الرمز.")
             return
 
         current_price = hist['Close'].iloc[-1]
@@ -39,35 +47,33 @@ async def analyze_stock(update: Update, context: ContextTypes.DEFAULT_TYPE):
         change = current_price - prev_close
         change_pct = (change / prev_close) * 100
 
-        # حساب المتوسط المتحرك البسيط لمدة 5 أيام عبر pandas العادية
-        sma_5 = hist['Close'].rolling(window=5).mean().iloc[-1]
-
-        # صياغة رسالة الرد
-        msg = (
-            f"📊 **تحليل السهم: {text}**\n\n"
-            f"💰 السعر الحالي: `{current_price:.2f}`\n"
-            f"📉 التغير: `{change:+.2f}` (`{change_pct:+.2f}%`)\n"
-            f"📈 المتوسط المتحرك (5 أيام): `{sma_5:.2f}`\n"
+        # تجهيز رسالة الرد
+        response = (
+            f"📊 **تحليل السهم: {ticker_symbol}**\n\n"
+            f"• السعر الحالي: `{current_price:.2f}`\n"
+            f"• التغير: `{change:+.2f} ({change_pct:+.2f}%)`\n"
         )
-        
-        await update.message.reply_text(msg, parse_mode="Markdown")
+        await update.message.reply_text(response, parse_mode="Markdown")
 
     except Exception as e:
+        logger.error(f"Error fetching data for {ticker_symbol}: {e}")
         await update.message.reply_text("حدث خطأ أثناء جلب بيانات السهم. حاول مرة أخرى لاحقاً.")
 
 def main():
-    if not TOKEN:
-        print("Error: TELEGRAM_BOT_TOKEN is not set.")
-        return
+    # سحب توكن البوت من متغيرات البيئة في Render
+    token = os.getenv("TELEGRAM_BOT_TOKEN")
+    if not token:
+        raise ValueError("TELEGRAM_BOT_TOKEN environment variable not set!")
 
-    # بناء وتشغيل البوت
-    application = ApplicationBuilder().token(TOKEN).build()
+    application = ApplicationBuilder().token(token).build()
 
+    # الأوامر والرسائل
     application.add_handler(CommandHandler("start", start))
-    application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), analyze_stock))
+    application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_stock))
 
+    # تشغيل البوت
     print("Bot is running...")
     application.run_polling()
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()
