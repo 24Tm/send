@@ -1,26 +1,38 @@
-import os 
+import os
 import logging
 import io
+import threading
 import yfinance as yf
 import pandas as pd
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+from flask import Flask
 from telegram import Update, InputFile
 from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, MessageHandler, filters
 
+# إعداد التسجيل
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
 )
 logger = logging.getLogger(__name__)
 
-WATCHLIST_SYMBOLS = ["1120.SR", "1180.SR", "2222.SR", "1010.SR", "1820.SR"]
+# إنشاء سيرفر ويب وهمي لمنع البوت من النوم على Render
+app_web = Flask('')
 
+@app_web.route('/')
+def home():
+    return "Bot is active and running 24/7!"
+
+def run_web():
+    app_web.run(host='0.0.0.0', port=int(os.environ.get("PORT", 8080)))
+
+# دالة الترحيب
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     welcome_message = (
         "مرحباً بك يا غالي! 🚀\n\n"
-        "أنا بوت تحليل الأسهم المطور. أرسل لي أي رمز سهم (مثل `1820`) وسأعطيك:\n\n"
+        "أنا بوت تحليل الأسهم المطور. أرسل لي أي رمز سهم (مثل `1820` أو `1120`) وسأعطيك:\n\n"
         "• **شارت فني مطور ومظلل بمناطق القرار** 📊\n"
         "• اتجاه السوق المتوقع ومستويات الدخول والخروج بدقة 🟢🎯\n"
     )
@@ -56,41 +68,32 @@ def calculate_rsi(series, period=14):
     return rsi.iloc[-1]
 
 def generate_advanced_chart(hist, ticker_symbol, current_price, buy_zone_low, buy_zone_high, target_1, target_2, stop_loss, trend_text):
-    """دالة رسم الشارت المتقدم مع مناطق القرار والاتجاهات الواضحة"""
     fig, ax = plt.subplots(figsize=(11, 7), facecolor='#0f172a')
     ax.set_facecolor('#1e293b')
 
-    # رسم خط السعر التاريخي
     ax.plot(hist.index, hist['Close'], color='#38bdf8', linewidth=2.2, label='سعر الإغلاق')
     
-    # المتوسط المتحرك EMA 50
     ema_50 = hist['Close'].ewm(span=50, adjust=False).mean()
     ax.plot(hist.index, ema_50, color='#fbbf24', linewidth=1.8, linestyle='--', label='متحرك 50 (EMA)')
 
-    # تظليل منطقة الشراء ومنطقة المخاطرة على الشارت لسهولة اتخاذ القرار
     ax.axhspan(buy_zone_low, buy_zone_high, color='#22c55e', alpha=0.15, label='منطقة الشراء (الدعم)')
     ax.axhspan(stop_loss, buy_zone_low, color='#ef4444', alpha=0.12, label='منطقة الخطر / وقف الخسارة')
 
-    # خطوط الأهداف ومستويات التداول الواضحة
     ax.axhline(y=target_1, color='#34d399', linestyle='-', linewidth=1.5, alpha=0.9, label=f'الهدف الأول: {target_1}')
     ax.axhline(y=target_2, color='#10b981', linestyle='-', linewidth=1.5, alpha=0.9, label=f'الهدف الثاني: {target_2}')
     ax.axhline(y=stop_loss, color='#f87171', linestyle='-', linewidth=1.5, alpha=0.9, label=f'وقف الخسارة: {stop_loss}')
 
     clean_symbol = ticker_symbol.replace('.SR', '').replace('.SA', '')
-    
-    # عنوان الشارت مع الاتجاه المتوقع
-    ax.set_title(f"Tadawul Decision Chart: {clean_symbol} | الاتجاه: {trend_text}", color='white', fontsize=13, fontweight='bold', pad=15)
+    ax.set_title(f"Technical Analysis Chart: {clean_symbol} | الاتجاه: {trend_text}", color='white', fontsize=12, fontweight='bold', pad=15)
     
     ax.tick_params(colors='white', labelsize=10)
     ax.grid(True, color='#334155', linestyle=':', alpha=0.6)
     
-    # ترتيب الليبلز بشكل احترافي
     legend = ax.legend(loc='upper left', facecolor='#0f172a', edgecolor='#334155', fontsize=9)
     for text in legend.get_texts():
         text.set_color('white')
 
     plt.tight_layout()
-    
     buf = io.BytesIO()
     plt.savefig(buf, format='png', dpi=180, facecolor=fig.get_facecolor(), edgecolor='none')
     buf.seek(0)
@@ -99,7 +102,7 @@ def generate_advanced_chart(hist, ticker_symbol, current_price, buy_zone_low, bu
 
 async def handle_stock(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.strip().upper()
-    await update.message.reply_text(f"⏳ جاري تحليل السهم `{text}` ورسم خريطة القرار الفنية...")
+    await update.message.reply_text(f"⏳ جاري سحب البيانات والتحليل الفني للسهم `{text}` . جارٍ رسم الشارت المطور وإرساله... 📊")
 
     hist, ticker_symbol = fetch_stock_data(text)
     if hist is None or hist.empty:
@@ -124,34 +127,29 @@ async def handle_stock(update: Update, context: ContextTypes.DEFAULT_TYPE):
         rsi_val = calculate_rsi(hist['Close'])
         ema_50 = hist['Close'].ewm(span=50, adjust=False).mean().iloc[-1]
 
-        # تحديد الاتجاه والقرار بناءً على المعطيات
         if current_price > ema_50 and rsi_val > 50:
-            trend_text = "صاعد إيجابي 🟢 (زخم شراء)"
+            trend_text = "صاعد إيجابي 🟢"
         elif rsi_val < 30:
-            trend_text = "تشبع بيعي - فرصة ارتداد مرتقبة 🔵"
+            trend_text = "تشبع بيعي (فرصة ارتداد) 🔵"
         else:
-            trend_text = "هابط / تصحيحي 🔴 (مراقبة الدعم)"
+            trend_text = "هابط / تصحيحي 🔴"
 
-        rsi_status = "تشبع شرائي ⚠️" if rsi_val > 70 else ("تشبع بيعي (فرصة ارتداد) 🟢" if rsi_val < 30 else "متوازن ⚖️")
-        display_symbol = f"Tadawul: {ticker_symbol.replace('.SR', '').replace('.SA', '')}"
-
-        # توليد الشارت المتقدم المظلل
+        display_symbol = ticker_symbol.replace('.SR', '').replace('.SA', '')
         chart_buf = generate_advanced_chart(hist, ticker_symbol, current_price, buy_zone_low, buy_zone_high, target_1, target_2, stop_loss, trend_text)
 
         caption = (
-            f"📊 **خريطة القرار الفني للسهم: `{display_symbol}`**\n\n"
-            f"• **السعر الحالي:** `{current_price:.2f}` ريال `({change:+.2f}%)`\n\n"
-            f"🎯 **مستويات اتخاذ القرار:**\n"
-            f"• 🟢 **منطقة الشراء (الدعم):** `{buy_zone_low} - {buy_zone_high}`\n"
-            f"• 🎯 **الأهداف المتوقعة:** الهدف 1 (`{target_1}`) | الهدف 2 (`{target_2}`)\n"
-            f"• 🛑 **حائط وقف الخسارة:** `{stop_loss}`\n\n"
-            f"📉 **الرؤية والزخم:**\n"
-            f"• RSI: `{rsi_val:.1f}` ({rsi_status})\n"
-            f"• التقييم العام: **{trend_text}**\n\n"
-            f"💡 *الصورة أعلاه مصممة لتوضيح مناطق السيولة والدعم لتساعدك في اتخاذ القرار مباشرة.*"
+            f"📊 **التقرير الفني الشامل للسهم:**\n"
+            f"Tadawul: `{display_symbol}`\n\n"
+            f"• **السعر الحالي:** `{current_price:.2f}` ريال\n"
+            f"• **التغير:** `{change:+.2f}` (`{change_pct:+.2f}%`)\n\n"
+            f"🎯 **مستويات التداول:**\n"
+            f"• 🟢 **منطقة الشراء:** `{buy_zone_low} - {buy_zone_high}`\n"
+            f"• 🎯 **الهدف الأول:** `{target_1}` | **الهدف الثاني:** `{target_2}`\n"
+            f"• 🛑 **وقف الخسارة:** `{stop_loss}`\n\n"
+            f"📉 ** المؤشرات:** RSI: `{rsi_val:.1f}`"
         )
 
-        await update.message.reply_photo(photo=InputFile(chart_buf, filename="decision_chart.png"), caption=caption, parse_mode="Markdown")
+        await update.message.reply_photo(photo=InputFile(chart_buf, filename="chart.png"), caption=caption, parse_mode="Markdown")
 
     except Exception as e:
         logger.error(f"Error handling stock {text}: {e}")
@@ -162,11 +160,16 @@ def main():
     if not token:
         raise ValueError("TELEGRAM_BOT_TOKEN environment variable not set!")
 
+    # تشغيل سيرفر الويب في خلفية منفصلة لمنع النوم
+    t = threading.Thread(target=run_web)
+    t.daemon = True
+    t.start()
+
     application = ApplicationBuilder().token(token).build()
     application.add_handler(CommandHandler("start", start))
     application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_stock))
 
-    print("Bot running with Advanced Decision Chart...")
+    print("Bot is running continuously with Keep-Alive Web Server...")
     application.run_polling()
 
 if __name__ == '__main__':
