@@ -33,13 +33,13 @@ def run_web():
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     welcome_message = (
         "مرحباً بك يا غالي في مستشارك المالي المؤسسي! 🚀\n\n"
-        "أنا بوت تحليل الأسهم السعودية (Tadawul). أرسل لي أي رمز سهم (مثل `1120` أو `1820`) وسأعطيك:\n\n"
-        "• **شارت شموع يابانية احترافي (3 لوحات: السعر، RSI، MACD)** 📊\n"
-        "• مناطق الشراء المظللة، الأهداف، ووقف الخسارة بدقة متناهية 🟢🎯\n"
+        "أنا بوت تحليل الأسهم السعودية (Tadawul). يمكنك استخدام الخيارات التالية:\n\n"
+        "• **أرسل رمز أي سهم** (مثل `1120` أو `1820`) لتحليله فوراً 📊\n"
+        "• **اكتب كلمة `هدف`** لأقوم بالبحث في السوق عن أقوى الفرص الإيجابية والأسهم المرشحة للانطلاق للأعلى 🟢🎯\n"
     )
     await update.message.reply_text(welcome_message)
 
-# دالة جلب البيانات مباشرة عبر API لضمان السرعة وعدم الحظر
+# دالة جلب البيانات مباشرة عبر API
 def fetch_stock_data_json(symbol):
     url = f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}?range=3mo&interval=1d"
     headers = {
@@ -123,10 +123,8 @@ def generate_institutional_chart(hist, ticker_symbol, current_price, buy_zone_lo
     fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(12, 11), facecolor='#0b0f19', 
                                          gridspec_kw={'height_ratios': [4, 1.2, 1.2]})
     
-    # ---------------- 1. اللوحة الأولى: السعر والشموع اليابانية والمؤشرات ----------------
+    # 1. اللوحة الأولى: السعر والشموع اليابانية ومناطق القرار
     ax1.set_facecolor('#111827')
-    
-    # رسم الشموع اليابانية يدويای بدقة واحترافية
     for i in range(len(hist)):
         op = hist['Open'].iloc[i]
         cl = hist['Close'].iloc[i]
@@ -136,17 +134,14 @@ def generate_institutional_chart(hist, ticker_symbol, current_price, buy_zone_lo
         ax1.plot([i, i], [lo, hi], color=color, linewidth=1, alpha=0.8)
         ax1.bar(i, abs(cl - op), bottom=min(op, cl), color=color, width=0.65)
 
-    # المتوسطات والبولنجر
     ema_50 = hist['Close'].ewm(span=50, adjust=False).mean()
     ax1.plot(range(len(hist)), ema_50, color='#fbbf24', linewidth=1.5, linestyle='--', label='EMA 50')
     ax1.plot(range(len(hist)), upper_band, color='#a855f7', linewidth=1, linestyle=':', alpha=0.7, label='Bollinger Upper')
     ax1.plot(range(len(hist)), lower_band, color='#a855f7', linewidth=1, linestyle=':', alpha=0.7, label='Bollinger Lower')
 
-    # مناطق الشراء والقرار المظللة
     ax1.axhspan(buy_zone_low, buy_zone_high, color='#22c55e', alpha=0.15, label='منطقة الشراء (الدعم)')
     ax1.axhspan(stop_loss, buy_zone_low, color='#ef4444', alpha=0.12, label='منطقة الخطر / وقف الخسارة')
 
-    # مستويات الأهداف ووقف الخسارة
     ax1.axhline(y=target_1, color='#34d399', linestyle='-', linewidth=1.5, alpha=0.9, label=f'الهدف الأول: {target_1}')
     ax1.axhline(y=target_2, color='#10b981', linestyle='-', linewidth=1.5, alpha=0.9, label=f'الهدف الثاني: {target_2}')
     ax1.axhline(y=stop_loss, color='#f87171', linestyle='-', linewidth=1.5, alpha=0.9, label=f'وقف الخسارة: {stop_loss}')
@@ -160,7 +155,7 @@ def generate_institutional_chart(hist, ticker_symbol, current_price, buy_zone_lo
     for text in legend1.get_texts():
         text.set_color('white')
 
-    # ---------------- 2. اللوحة الثانية: مؤشر القوة النسبية RSI ----------------
+    # 2. اللوحة الثانية: RSI
     ax2.set_facecolor('#111827')
     ax2.plot(range(len(hist)), rsi, color='#38bdf8', linewidth=1.5, label='RSI (14)')
     ax2.axhline(70, color='#ef4444', linestyle='--', linewidth=1, alpha=0.7, label='تشبع شرائي (70)')
@@ -172,7 +167,7 @@ def generate_institutional_chart(hist, ticker_symbol, current_price, buy_zone_lo
     for text in legend2.get_texts():
         text.set_color('white')
 
-    # ---------------- 3. اللوحة الثالثة: مؤشر MACD ----------------
+    # 3. اللوحة الثالثة: MACD
     ax3.set_facecolor('#111827')
     ax3.plot(range(len(hist)), macd, color='#38bdf8', linewidth=1.2, label='MACD')
     ax3.plot(range(len(hist)), signal_line, color='#fbbf24', linewidth=1.2, label='Signal')
@@ -191,15 +186,12 @@ def generate_institutional_chart(hist, ticker_symbol, current_price, buy_zone_lo
     plt.close(fig)
     return buf, rsi.iloc[-1]
 
-# معالجة طلب السهم من المستخدم
-async def handle_stock(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = update.message.text.strip().upper()
-    await update.message.reply_text(f"⏳ جاري توليد شارت الشموع اليابانية المؤسسي والثلاثي للسهم `{text}`... 📊")
-
-    hist, ticker_symbol = fetch_stock_data(text)
+# دالة تحليل ومعالجة السهم وإرسال التقرير
+async def process_and_send_stock(update: Update, symbol_text: str):
+    hist, ticker_symbol = fetch_stock_data(symbol_text)
     if hist is None or hist.empty:
-        await update.message.reply_text(f"عذراً، لم أتمكن من العثور على بيانات للسهم: `{text}`.")
-        return
+        await update.message.reply_text(f"عذراً، لم أتمكن من العثور على بيانات للسهم: `{symbol_text}`.")
+        return False
 
     try:
         current_price = hist['Close'].iloc[-1]
@@ -217,13 +209,13 @@ async def handle_stock(update: Update, context: ContextTypes.DEFAULT_TYPE):
         stop_loss = round(buy_zone_low * 0.97, 2)
 
         ema_50 = hist['Close'].ewm(span=50, adjust=False).mean().iloc[-1]
-        trend_text = "صاعد إيجابي 🟢" if current_price > ema_50 else "تصحيحي / هابط 🔴"
+        trend_text = "صاعد إيجابي 🟢" if current_price > ema_50 else "تصحيحي / فرصة ارتداد 🔵"
 
         chart_buf, rsi_val = generate_institutional_chart(hist, ticker_symbol, current_price, buy_zone_low, buy_zone_high, target_1, target_2, stop_loss, trend_text)
 
         display_symbol = ticker_symbol.replace('.SR', '').replace('.SA', '')
         caption = (
-            f"🏛️ **التقرير المؤسسي والشارت الاحترافي:**\n"
+            f"🏛️ **التقرير المؤسسي وفرصة الانطلاق:**\n"
             f"Tadawul: `{display_symbol}`\n\n"
             f"• **السعر الحالي:** `{current_price:.2f}` ريال\n"
             f"• **التغير:** `{change:+.2f}` (`{change_pct:+.2f}%`)\n\n"
@@ -231,14 +223,47 @@ async def handle_stock(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"• 🟢 **منطقة الشراء:** `{buy_zone_low} - {buy_zone_high}`\n"
             f"• 🎯 **الهدف الأول:** `{target_1}` | **الهدف الثاني:** `{target_2}`\n"
             f"• 🛑 **وقف الخسارة:** `{stop_loss}`\n\n"
-            f"📉 **المؤشرات الفنية:** RSI: `{rsi_val:.1f}` | شارت شموع يابانية (3 لوحات) ✅"
+            f"📉 **المؤشرات الفنية:** RSI: `{rsi_val:.1f}` | فرصة قوية للانطلاق 🚀"
         )
 
         await update.message.reply_photo(photo=InputFile(chart_buf, filename="institutional_chart.png"), caption=caption, parse_mode="Markdown")
-
+        return True
     except Exception as e:
-        logger.error(f"Error handling stock {text}: {e}")
-        await update.message.reply_text("حدث خطأ أثناء معالجة الشارت المؤسسي.")
+        logger.error(f"Error processing stock {symbol_text}: {e}")
+        return False
+
+# معالجة الرسائل الواردة (سواء رمز سهم أو أمر هدف)
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = update.message.text.strip().upper()
+
+    if text == "هدف" or text == "الاهداف" or text == "فرص":
+        await update.message.reply_text("🔍 جاري مسح السوق السعودي وفحص الأسهم النشطة لاكتشاف أقوى فرص الانطلاق والارتداد...")
+        
+        # قائمة بأبرز الأسهم القيادية والنشطة في تداول لفحصها
+        watchlist = ["1120", "1180", "2222", "1010", "1150", "2010", "1211", "4300"]
+        found_count = 0
+
+        for sym in watchlist:
+            hist, ticker_symbol = fetch_stock_data(sym)
+            if hist is not None and not hist.empty:
+                rsi_val, _, _, _, macd, signal_line = calculate_indicators(hist)
+                current_price = hist['Close'].iloc[-1]
+                ema_50 = hist['Close'].ewm(span=50, adjust=False).mean().iloc[-1]
+                
+                # شرط الفرصة القوية (إيجابي أو قرب تشبع بيعي بارتداد قوي)
+                if current_price >= ema_50 or rsi_val < 45:
+                    success = await process_and_send_stock(update, sym)
+                    if success:
+                        found_count += 1
+                        if found_count >= 2: # نرسل أقوى فرصتين لعدم إزعاج المستخدم
+                            break
+        
+        if found_count == 0:
+            await update.message.reply_text("لم يتم العثور على فرص مطابقة بالشروط حالياً، حاول مرة أخرى لاحقاً.")
+    else:
+        # معالجة السهم الفردي المرسل
+        await update.message.reply_text(f"⏳ جاري سحب البيانات وتحليل الشارت المؤسسي للسهم `{text}`... 📊")
+        await process_and_send_stock(update, text)
 
 def main():
     token = os.getenv("TELEGRAM_BOT_TOKEN")
@@ -252,9 +277,9 @@ def main():
 
     application = ApplicationBuilder().token(token).build()
     application.add_handler(CommandHandler("start", start))
-    application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_stock))
+    application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_message))
 
-    print("Bot is running continuously with Keep-Alive Web Server & Institutional Candlestick Charts...")
+    print("Bot is running continuously with Keep-Alive Web Server & Smart 'Hedaf' Feature...")
     application.run_polling()
 
 if __name__ == '__main__':
