@@ -16,8 +16,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     welcome_message = (
         "مرحباً بك! 📈\n\n"
         "أنا بوت تحليل الأسهم. أرسل لي رمز السهم "
-        "(مثل `AAPL` للأسهم الأمريكية، أو رقم السهم السعودي مثل `1820`) "
-        "وسأعطيك تحليلاً سريعاً يشتمل على السعر ومنطقة الشراء المقترحة."
+        "(مثل `AAPL` للأسهم الأمريكية، أو رقم السهم السعودي مثل `1820` أو `1120`) "
+        "وسأعطيك تحليلاً يشتمل على السعر الحالي، مناطق الشراء، وأهداف الخروج."
     )
     await update.message.reply_text(welcome_message)
 
@@ -25,7 +25,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def handle_stock(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.strip().upper()
     
-    # محاولة تجربة أكثر من صيغة للسوق السعودي لضمان جلب البيانات
+    # تحديد الصيغ المحتملة للأسهم السعودية والعالمية
     possible_symbols = []
     if text.isdigit():
         possible_symbols = [f"{text}.SR", f"{text}.SA", text]
@@ -41,6 +41,7 @@ async def handle_stock(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ticker_symbol = text
 
     try:
+        # تجربة جلب البيانات عبر الصيغ المتاحة
         for sym in possible_symbols:
             stock = yf.Ticker(sym)
             temp_hist = stock.history(period="1mo")
@@ -52,7 +53,7 @@ async def handle_stock(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if hist is None or hist.empty:
             await update.message.reply_text(
                 f"عذراً، لم أتمكن من العثور على بيانات للسهم: `{text}`.\n"
-                "ملاحظة: بعض الأسهم قد تتطلب رمزها الكامل المعتمد في Yahoo Finance."
+                "تأكد من صحة الرمز أو الرقم المدخل."
             )
             return
 
@@ -61,10 +62,16 @@ async def handle_stock(update: Update, context: ContextTypes.DEFAULT_TYPE):
         change = current_price - prev_close
         change_pct = (change / prev_close) * 100
 
-        # حساب منطقة شراء مقترحة
-        support_level = hist['Low'].tail(10).min()
+        # حساب مستويات الدعم والمقاومة ومناطق الشراء والخروج
+        support_level = hist['Low'].tail(10).min()   # مستوى الدعم القريب
+        resistance_level = hist['High'].tail(10).max() # مستوى المقاومة القريب
+
+        # منطقة الشراء المقترحة (حول مستوى الدعم)
         buy_zone_low = round(support_level * 0.99, 2)
         buy_zone_high = round(support_level * 1.01, 2)
+
+        # منطقة الخروج / الهدف المقترح (حول مستوى المقاومة أو بنسبة ربح مستهدفة)
+        exit_target = round(max(resistance_level, current_price * 1.04), 2)
         recent_low = hist['Low'].min()
 
         # تجهيز رسالة الرد المفصلة
@@ -72,10 +79,11 @@ async def handle_stock(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"📊 **تحليل السهم: {ticker_symbol}**\n\n"
             f"• السعر الحالي: `{current_price:.2f}`\n"
             f"• التغير: `{change:+.2f} ({change_pct:+.2f}%)`\n\n"
-            f"🎯 **التحليل الفني المقترح:**\n"
-            f"• أفضل منطقة شراء (دعم): `{buy_zone_low} - {buy_zone_high}`\n"
-            f"• أدنى سعر شهري مسجل: `{recent_low:.2f}`\n\n"
-            f"⚠️ *ملاحظة: هذا التحليل آلي للاستئناس وليس توصية مباشرة.*"
+            f"🎯 **التحليل الفني والمستويات:**\n"
+            f"• 🟢 **أفضل منطقة شراء:** `{buy_zone_low} - {buy_zone_high}`\n"
+            f"• 🔴 **منطقة الخروج (الهدف):** `{exit_target}`\n"
+            f"• 📉 أدنى سعر شهري: `{recent_low:.2f}`\n\n"
+            f"⚠️ *ملاحظة: هذا التحليل آلي للاستئناس وليس توصية بيع أو شراء مباشرة.*"
         )
         await update.message.reply_text(response, parse_mode="Markdown")
 
