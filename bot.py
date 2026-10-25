@@ -1,6 +1,7 @@
 import os
 import logging
 import yfinance as yf
+import pandas as pd
 from telegram import Update
 from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, MessageHandler, filters
 
@@ -15,21 +16,20 @@ logger = logging.getLogger(__name__)
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     welcome_message = (
         "مرحباً بك يا غالي! 📈\n\n"
-        "أنا بوت تحليل الأسهم المطور. أرسل لي رمز السهم "
-        "(مثل `AAPL` للأمريكي، أو رقم السهم السعودي مثل `1120` أو `1820`) "
-        "وسأعطيك تحليلاً فنياً كاملاً يتضمن:\n"
-        "• السعر الحالي والتغير\n"
-        "• أفضل منطقة شراء (الدعم)\n"
-        "• أهداف الخروج (المقاومة)\n"
-        "• نقطة وقف الخسارة"
+        "أنا بوت تحليل الأسهم المطور والذكي. أرسل لي رمز السهم "
+        "(مثل `AAPL` للأمريكي، أو رقم السهم السعودي مثل `1120` أو `1820`) وسأعطيك:\n"
+        "• السعر الحالي ونسبة التغير\n"
+        "• أفضل منطقة شراء (الدعم) وأهداف الخروج\n"
+        "• مؤشرات الزخم المتقدمة (RSI و EMA)\n\n"
+        "💡 **الأوامر المتاحة:**\n"
+        "• أرسل رقم أو رمز السهم مباشرة للتحليل.\n"
+        "• أكتب `/scan [الرمز]` لفحص فرص الاختراق والارتداد الذكي."
     )
     await update.message.reply_text(welcome_message)
 
-# دالة استقبال رموز الأسهم ومعالجتها
-async def handle_stock(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = update.message.text.strip().upper()
-    
-    # تحديد الصيغ المحتملة للأسهم السعودية والعالمية
+# دالة مساعدة لتنظيف الرمز وجلب البيانات التاريخية الكافية للمؤشرات (3 أشهر)
+def fetch_stock_data(text):
+    text = text.strip().upper()
     possible_symbols = []
     if text.isdigit():
         possible_symbols = [f"{text}.SR", f"{text}.SA", text]
@@ -39,68 +39,127 @@ async def handle_stock(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         possible_symbols = [text]
 
-    await update.message.reply_text(f"جاري جلب بيانات وتحليل السهم `{text}` ... ⏳")
+    for sym in possible_symbols:
+        try:
+            stock = yf.Ticker(sym)
+            hist = stock.history(period="3mo")
+            if not hist.empty:
+                return hist, sym
+        except Exception:
+            continue
+    return None, text
 
-    hist = None
-    ticker_symbol = text
+# دالة حساب مؤشر القوة النسبية RSI
+def calculate_rsi(series, period=14):
+    delta = series.diff()
+    gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
+    rs = gain / loss
+    rsi = 100 - (100 / (1 + rs))
+    return rsi.iloc[-1]
+
+# دالة استقبال وتحليل الأسهم بالطريقة الشاملة
+async def handle_stock(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = update.message.text.strip().upper()
+    await update.message.reply_text(f"جاري جلب بيانات وتحليل الزخم للسهم `{text}` ... ⏳")
+
+    hist, ticker_symbol = fetch_stock_data(text)
+
+    if hist is None or hist.empty:
+        await update.message.reply_text(f"عذراً، لم أتمكن من العثور على بيانات للسهم: `{text}`. تأكد من صحة الرمز.")
+        return
 
     try:
-        # تجربة جلب البيانات عبر الصيغ المتاحة
-        for sym in possible_symbols:
-            stock = yf.Ticker(sym)
-            temp_hist = stock.history(period="1mo")
-            if not temp_hist.empty:
-                hist = temp_hist
-                ticker_symbol = sym
-                break
-
-        if hist is None or hist.empty:
-            await update.message.reply_text(
-                f"عذراً، لم أتمكن من العثور على بيانات للسهم: `{text}`.\n"
-                "تأكد من صحة الرمز أو الرقم المدخل."
-            )
-            return
-
         current_price = hist['Close'].iloc[-1]
         prev_close = hist['Close'].iloc[-2] if len(hist) > 1 else current_price
         change = current_price - prev_close
         change_pct = (change / prev_close) * 100
 
-        # حساب مستويات الدعم والمقاومة بدقة أعلى
-        support_level = hist['Low'].tail(10).min()   # أدنى دعم قريب
-        resistance_level = hist['High'].tail(10).max() # أعلى مقاومة قريبة
+        # حساب المستويات الفنية والدعم والمقاومة
+        support_level = hist['Low'].tail(10).min()
+        resistance_level = hist['High'].tail(10).max()
 
-        # نطاق منطقة الشراء المقترحة
         buy_zone_low = round(support_level * 0.99, 2)
         buy_zone_high = round(support_level * 1.01, 2)
-
-        # أهداف الخروج (الهدف الأول والهدف الثاني)
-        target_1 = round(current_price * 1.03, 2) # هدف قريب 3%
-        target_2 = round(max(resistance_level, current_price * 1.06), 2) # هدف المقاومة أو 6%
-
-        # وقف الخسارة (لحماية رأس المال أسفل منطقة الشراء)
+        target_1 = round(current_price * 1.03, 2)
+        target_2 = round(max(resistance_level, current_price * 1.06), 2)
         stop_loss = round(buy_zone_low * 0.97, 2)
 
-        # تنسيق اسم السهم ليعرض بشكل صحيح ومنسق في التيليقرام
+        # حساب مؤشرات الزخم (RSI والموسط المتحرك الأسي EMA)
+        rsi_val = calculate_rsi(hist['Close'])
+        ema_50 = hist['Close'].ewm(span=50, adjust=False).mean().iloc[-1]
+
+        # تحديد حالة الزخم واتجاه السهم
+        trend_status = "صاعد 🟢" if current_price > ema_50 else "هابط أو تصحيحي 🔴"
+        rsi_status = ""
+        if rsi_val > 70:
+            rsi_status = "تشبع شرائي ⚠️"
+        elif rsi_val < 30:
+            rsi_status = "تشبع بيعي (فرصة ارتداد محتملة) 🟢"
+        else:
+            rsi_status = "متوازن ⚖️"
+
         display_symbol = ticker_symbol.replace(".SR", " (Tadawul)").replace(".SA", " (Tadawul)")
 
-        # تجهيز رسالة الرد الاحترافية والمفصلة
         response = (
-            f"📊 **تقرير تحليل السهم: `{display_symbol}`**\n\n"
+            f"📊 **تقرير تحليل وزخم السهم: `{display_symbol}`**\n\n"
             f"• **السعر الحالي:** `{current_price:.2f}`\n"
             f"• **التغير:** `{change:+.2f} ({change_pct:+.2f}%)`\n\n"
-            f"🎯 **الرؤية الفنية ومناطق التداول:**\n"
+            f"🎯 **المستويات ومناطق التداول:**\n"
             f"• 🟢 **منطقة الشراء:** `{buy_zone_low} - {buy_zone_high}`\n"
-            f"• 🎯 **الهدف الأول (خروج):** `{target_1}`\n"
-            f"• 🚀 **الهدف الثاني (خروج):** `{target_2}`\n"
+            f"• 🎯 **الهدف الأول:** `{target_1}` | **الهدف الثاني:** `{target_2}`\n"
             f"• 🛑 **وقف الخسارة:** `{stop_loss}`\n\n"
-            f"⚠️ *ملاحظة: هذه الرؤية تحليل آلي لأغراض الاستئناس وليست توصية إلزامية.*"
+            f"📉 **تحليل الزخم المتقدم (الفكرة الأولى):**\n"
+            f"• **مؤشر القوة النسبية (RSI):** `{rsi_val:.1f}` ({rsi_status})\n"
+            f"• **اتجاه المتوسط (EMA 50):** {trend_status}\n\n"
+            f"⚠️ *ملاحظة: هذا التحليل آلي للاستئناس وليست توصية مباشرة.*"
         )
         await update.message.reply_text(response, parse_mode="Markdown")
 
     except Exception as e:
-        logger.error(f"Error fetching data for {text}: {e}")
-        await update.message.reply_text("حدث خطأ أثناء جلب بيانات السهم. حاول مرة أخرى لاحقاً.")
+        logger.error(f"Error analyzing stock {text}: {e}")
+        await update.message.reply_text("حدث خطأ أثناء معالجة بيانات السهم الفنية.")
+
+# دالة الفحص الذكي للفرص (الفكرة الثانية: Smart Scanner)
+async def scan_stock(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not context.args:
+        await update.message.reply_text("الرجاء إدخال رمز السهم بعد الأمر. مثال:\n`/scan 1120` أو `/scan AAPL`", parse_mode="Markdown")
+        return
+
+    text = context.args[0]
+    await update.message.reply_text(f"🔍 جاري إجراء المسح الذكي لفرص الارتداد والاختراق للسهم `{text}` ... ⏳")
+
+    hist, ticker_symbol = fetch_stock_data(text)
+    if hist is None or hist.empty:
+        await update.message.reply_text(f"عذراً، لم نتمكن من جلب بيانات السهم `{text}` للفحص الذكي.")
+        return
+
+    try:
+        current_price = hist['Close'].iloc[-1]
+        recent_low = hist['Low'].tail(10).min()
+        distance_from_support = ((current_price - recent_low) / recent_low) * 100
+        volume_avg = hist['Volume'].tail(10).mean()
+        current_volume = hist['Volume'].iloc[-1]
+        rsi_val = calculate_rsi(hist['Close'])
+
+        # شروط الفحص الذكي للفرص
+        signal_note = "حالة عادية، انتظر اقتراب السعر أكثر من الدعم."
+        if distance_from_support <= 1.5 and rsi_val < 40:
+            signal_note = "🔥 **فرصة قوية!** السهم يرتكز قرب منطقة دعم رئيسية مع مؤشر RSI منخفض (منطقة ارتداد)."
+        elif current_volume > (volume_avg * 1.5) and current_price > hist['Close'].iloc[-2]:
+            signal_note = "🚀 **تنبيه سيولة واختراق!** رصد زيادة ملحوظة في حجم التداول مع صعود سعري."
+
+        report = (
+            f"📡 **نتيجة الفحص الذكي (Smart Scanner):**\n"
+            f"• الرمز: `{ticker_symbol}`\n"
+            f"• البعد عن الدعم الأخير: `{distance_from_support:.2f}%`\n"
+            f"• تقييم الفرصة: {signal_note}"
+        )
+        await update.message.reply_text(report, parse_mode="Markdown")
+
+    except Exception as e:
+        logger.error(f"Error in scanner for {text}: {e}")
+        await update.message.reply_text("حدث خطأ أثناء عملية المسح الفني.")
 
 def main():
     token = os.getenv("TELEGRAM_BOT_TOKEN")
@@ -110,9 +169,10 @@ def main():
     application = ApplicationBuilder().token(token).build()
 
     application.add_handler(CommandHandler("start", start))
+    application.add_handler(CommandHandler("scan", scan_stock))
     application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_stock))
 
-    print("Bot is running...")
+    print("Bot is running with Advanced Features...")
     application.run_polling()
 
 if __name__ == '__main__':
