@@ -32,10 +32,10 @@ def run_web():
 # دالة الترحيب التفاعلية
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     welcome_message = (
-        "مرحباً بك يا غالي في مستشارك المالي البصري المطور! 🚀\n\n"
+        "مرحباً بك يا غالي في مستشارك المالي المؤسسي! 🚀\n\n"
         "أنا بوت تحليل الأسهم السعودية (Tadawul). أرسل لي أي رمز سهم (مثل `1120` أو `1820`) وسأعطيك:\n\n"
-        "• **شارت فني احترافي (EMA, Bollinger Bands, MACD, RSI)** 📊\n"
-        "• مناطق الشراء المظللة، الأهداف، ووقف الخسارة بدقة 🟢🎯\n"
+        "• **شارت شموع يابانية احترافي (3 لوحات: السعر، RSI، MACD)** 📊\n"
+        "• مناطق الشراء المظللة، الأهداف، ووقف الخسارة بدقة متناهية 🟢🎯\n"
     )
     await update.message.reply_text(welcome_message)
 
@@ -91,7 +91,7 @@ def fetch_stock_data(text):
             
     return None, text
 
-# حساب المؤشرات الفنية (RSI, Bollinger Bands, MACD)
+# حساب المؤشرات الفنية المتقدمة
 def calculate_indicators(df):
     close = df['Close']
     
@@ -114,66 +114,87 @@ def calculate_indicators(df):
     macd = exp1 - exp2
     signal_line = macd.ewm(span=9, adjust=False).mean()
     
-    return rsi.iloc[-1], upper_band, lower_band, sma_20, macd, signal_line
+    return rsi, upper_band, lower_band, sma_20, macd, signal_line
 
-# دالة رسم الشارت الفني المطور بمؤشرات متعددة ومناطق القرار
-def generate_advanced_chart(hist, ticker_symbol, current_price, buy_zone_low, buy_zone_high, target_1, target_2, stop_loss, trend_text):
-    rsi_val, upper_band, lower_band, sma_20, macd, signal_line = calculate_indicators(hist)
+# دالة رسم الشارت المؤسسي الاحترافي (الشموع اليابانية + 3 لوحات)
+def generate_institutional_chart(hist, ticker_symbol, current_price, buy_zone_low, buy_zone_high, target_1, target_2, stop_loss, trend_text):
+    rsi, upper_band, lower_band, sma_20, macd, signal_line = calculate_indicators(hist)
 
-    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(11, 9), facecolor='#0f172a', gridspec_kw={'height_ratios': [3, 1]})
+    fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(12, 11), facecolor='#0b0f19', 
+                                         gridspec_kw={'height_ratios': [4, 1.2, 1.2]})
     
-    # الشارت الرئيسي (السعر، المتوسطات، البولنجر، ومناطق الشراء)
-    ax1.set_facecolor('#1e293b')
-    ax1.plot(hist.index, hist['Close'], color='#38bdf8', linewidth=2, label='سعر الإغلاق')
+    # ---------------- 1. اللوحة الأولى: السعر والشموع اليابانية والمؤشرات ----------------
+    ax1.set_facecolor('#111827')
     
+    # رسم الشموع اليابانية يدويای بدقة واحترافية
+    for i in range(len(hist)):
+        op = hist['Open'].iloc[i]
+        cl = hist['Close'].iloc[i]
+        hi = hist['High'].iloc[i]
+        lo = hist['Low'].iloc[i]
+        color = '#22c55e' if cl >= op else '#ef4444'
+        ax1.plot([i, i], [lo, hi], color=color, linewidth=1, alpha=0.8)
+        ax1.bar(i, abs(cl - op), bottom=min(op, cl), color=color, width=0.65)
+
+    # المتوسطات والبولنجر
     ema_50 = hist['Close'].ewm(span=50, adjust=False).mean()
-    ax1.plot(hist.index, ema_50, color='#fbbf24', linewidth=1.5, linestyle='--', label='متحرك 50 (EMA)')
-    
-    # خطوط البولنجر باند
-    ax1.plot(hist.index, upper_band, color='#a855f7', linewidth=1, linestyle=':', alpha=0.7, label='Bollinger Upper')
-    ax1.plot(hist.index, lower_band, color='#a855f7', linewidth=1, linestyle=':', alpha=0.7, label='Bollinger Lower')
+    ax1.plot(range(len(hist)), ema_50, color='#fbbf24', linewidth=1.5, linestyle='--', label='EMA 50')
+    ax1.plot(range(len(hist)), upper_band, color='#a855f7', linewidth=1, linestyle=':', alpha=0.7, label='Bollinger Upper')
+    ax1.plot(range(len(hist)), lower_band, color='#a855f7', linewidth=1, linestyle=':', alpha=0.7, label='Bollinger Lower')
 
     # مناطق الشراء والقرار المظللة
     ax1.axhspan(buy_zone_low, buy_zone_high, color='#22c55e', alpha=0.15, label='منطقة الشراء (الدعم)')
     ax1.axhspan(stop_loss, buy_zone_low, color='#ef4444', alpha=0.12, label='منطقة الخطر / وقف الخسارة')
 
-    # الخطوط الإرشادية للأهداف ووقف الخسارة
+    # مستويات الأهداف ووقف الخسارة
     ax1.axhline(y=target_1, color='#34d399', linestyle='-', linewidth=1.5, alpha=0.9, label=f'الهدف الأول: {target_1}')
     ax1.axhline(y=target_2, color='#10b981', linestyle='-', linewidth=1.5, alpha=0.9, label=f'الهدف الثاني: {target_2}')
     ax1.axhline(y=stop_loss, color='#f87171', linestyle='-', linewidth=1.5, alpha=0.9, label=f'وقف الخسارة: {stop_loss}')
 
     clean_symbol = ticker_symbol.replace('.SR', '').replace('.SA', '')
-    ax1.set_title(f"Advanced Technical Analysis: {clean_symbol} | الاتجاه: {trend_text}", color='white', fontsize=11, fontweight='bold', pad=10)
+    ax1.set_title(f"Institutional Candlestick Analysis: {clean_symbol} | الاتجاه: {trend_text}", color='white', fontsize=12, fontweight='bold', pad=12)
     ax1.tick_params(colors='white', labelsize=9)
-    ax1.grid(True, color='#334155', linestyle=':', alpha=0.6)
+    ax1.grid(True, color='#1f2937', linestyle=':', alpha=0.7)
     
-    legend1 = ax1.legend(loc='upper left', facecolor='#0f172a', edgecolor='#334155', fontsize=8)
+    legend1 = ax1.legend(loc='upper left', facecolor='#0b0f19', edgecolor='#374151', fontsize=8)
     for text in legend1.get_texts():
         text.set_color('white')
 
-    # الشارت الفرعي (مؤشر MACD)
-    ax2.set_facecolor('#1e293b')
-    ax2.plot(hist.index, macd, color='#38bdf8', linewidth=1.2, label='MACD')
-    ax2.plot(hist.index, signal_line, color='#fbbf24', linewidth=1.2, label='Signal')
-    ax2.bar(hist.index, macd - signal_line, color='#22c55e', alpha=0.5, label='Histogram')
+    # ---------------- 2. اللوحة الثانية: مؤشر القوة النسبية RSI ----------------
+    ax2.set_facecolor('#111827')
+    ax2.plot(range(len(hist)), rsi, color='#38bdf8', linewidth=1.5, label='RSI (14)')
+    ax2.axhline(70, color='#ef4444', linestyle='--', linewidth=1, alpha=0.7, label='تشبع شرائي (70)')
+    ax2.axhline(30, color='#22c55e', linestyle='--', linewidth=1, alpha=0.7, label='تشبع بيعي (30)')
+    ax2.set_ylim(0, 100)
     ax2.tick_params(colors='white', labelsize=8)
-    ax2.grid(True, color='#334155', linestyle=':', alpha=0.6)
-    
-    legend2 = ax2.legend(loc='upper left', facecolor='#0f172a', edgecolor='#334155', fontsize=7)
+    ax2.grid(True, color='#1f2937', linestyle=':', alpha=0.7)
+    legend2 = ax2.legend(loc='upper left', facecolor='#0b0f19', edgecolor='#374151', fontsize=7)
     for text in legend2.get_texts():
+        text.set_color('white')
+
+    # ---------------- 3. اللوحة الثالثة: مؤشر MACD ----------------
+    ax3.set_facecolor('#111827')
+    ax3.plot(range(len(hist)), macd, color='#38bdf8', linewidth=1.2, label='MACD')
+    ax3.plot(range(len(hist)), signal_line, color='#fbbf24', linewidth=1.2, label='Signal')
+    hist_macd = macd - signal_line
+    ax3.bar(range(len(hist)), hist_macd, color=['#22c55e' if val >= 0 else '#ef4444' for val in hist_macd], alpha=0.6, label='Histogram')
+    ax3.tick_params(colors='white', labelsize=8)
+    ax3.grid(True, color='#1f2937', linestyle=':', alpha=0.7)
+    legend3 = ax3.legend(loc='upper left', facecolor='#0b0f19', edgecolor='#374151', fontsize=7)
+    for text in legend3.get_texts():
         text.set_color('white')
 
     plt.tight_layout()
     buf = io.BytesIO()
-    plt.savefig(buf, format='png', dpi=180, facecolor=fig.get_facecolor(), edgecolor='none')
+    plt.savefig(buf, format='png', dpi=200, facecolor=fig.get_facecolor(), edgecolor='none')
     buf.seek(0)
     plt.close(fig)
-    return buf, rsi_val
+    return buf, rsi.iloc[-1]
 
 # معالجة طلب السهم من المستخدم
 async def handle_stock(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.strip().upper()
-    await update.message.reply_text(f"⏳ جاري سحب البيانات وحساب مؤشرات Bollinger و MACD للسهم `{text}` ... 📊")
+    await update.message.reply_text(f"⏳ جاري توليد شارت الشموع اليابانية المؤسسي والثلاثي للسهم `{text}`... 📊")
 
     hist, ticker_symbol = fetch_stock_data(text)
     if hist is None or hist.empty:
@@ -196,27 +217,28 @@ async def handle_stock(update: Update, context: ContextTypes.DEFAULT_TYPE):
         stop_loss = round(buy_zone_low * 0.97, 2)
 
         ema_50 = hist['Close'].ewm(span=50, adjust=False).mean().iloc[-1]
+        trend_text = "صاعد إيجابي 🟢" if current_price > ema_50 else "تصحيحي / هابط 🔴"
 
-        chart_buf, rsi_val = generate_advanced_chart(hist, ticker_symbol, current_price, buy_zone_low, buy_zone_high, target_1, target_2, stop_loss, "صاعد / متوازن 🟢")
+        chart_buf, rsi_val = generate_institutional_chart(hist, ticker_symbol, current_price, buy_zone_low, buy_zone_high, target_1, target_2, stop_loss, trend_text)
 
         display_symbol = ticker_symbol.replace('.SR', '').replace('.SA', '')
         caption = (
-            f"📊 **التقرير الفني الشامل والمحترف:**\n"
+            f"🏛️ **التقرير المؤسسي والشارت الاحترافي:**\n"
             f"Tadawul: `{display_symbol}`\n\n"
             f"• **السعر الحالي:** `{current_price:.2f}` ريال\n"
             f"• **التغير:** `{change:+.2f}` (`{change_pct:+.2f}%`)\n\n"
-            f"🎯 **مستويات التداول:**\n"
+            f"🎯 **مستويات التداول الرئيسية:**\n"
             f"• 🟢 **منطقة الشراء:** `{buy_zone_low} - {buy_zone_high}`\n"
             f"• 🎯 **الهدف الأول:** `{target_1}` | **الهدف الثاني:** `{target_2}`\n"
             f"• 🛑 **وقف الخسارة:** `{stop_loss}`\n\n"
-            f"📉 **المؤشرات:** RSI: `{rsi_val:.1f}` | Bollinger & MACD مفعلة ✅"
+            f"📉 **المؤشرات الفنية:** RSI: `{rsi_val:.1f}` | شارت شموع يابانية (3 لوحات) ✅"
         )
 
-        await update.message.reply_photo(photo=InputFile(chart_buf, filename="chart.png"), caption=caption, parse_mode="Markdown")
+        await update.message.reply_photo(photo=InputFile(chart_buf, filename="institutional_chart.png"), caption=caption, parse_mode="Markdown")
 
     except Exception as e:
         logger.error(f"Error handling stock {text}: {e}")
-        await update.message.reply_text("حدث خطأ أثناء معالجة الشارت الفني المتقدم.")
+        await update.message.reply_text("حدث خطأ أثناء معالجة الشارت المؤسسي.")
 
 def main():
     token = os.getenv("TELEGRAM_BOT_TOKEN")
@@ -232,7 +254,7 @@ def main():
     application.add_handler(CommandHandler("start", start))
     application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_stock))
 
-    print("Bot is running continuously with Keep-Alive Web Server & Advanced Indicators...")
+    print("Bot is running continuously with Keep-Alive Web Server & Institutional Candlestick Charts...")
     application.run_polling()
 
 if __name__ == '__main__':
