@@ -14,10 +14,14 @@ logger = logging.getLogger(__name__)
 # دالة رسالة الترحيب /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     welcome_message = (
-        "مرحباً بك! 📈\n\n"
-        "أنا بوت تحليل الأسهم. أرسل لي رمز السهم "
-        "(مثل `AAPL` للأسهم الأمريكية، أو رقم السهم السعودي مثل `1820` أو `1120`) "
-        "وسأعطيك تحليلاً يشتمل على السعر الحالي، مناطق الشراء، وأهداف الخروج."
+        "مرحباً بك يا غالي! 📈\n\n"
+        "أنا بوت تحليل الأسهم المطور. أرسل لي رمز السهم "
+        "(مثل `AAPL` للأمريكي، أو رقم السهم السعودي مثل `1120` أو `1820`) "
+        "وسأعطيك تحليلاً فنياً كاملاً يتضمن:\n"
+        "• السعر الحالي والتغير\n"
+        "• أفضل منطقة شراء (الدعم)\n"
+        "• أهداف الخروج (المقاومة)\n"
+        "• نقطة وقف الخسارة"
     )
     await update.message.reply_text(welcome_message)
 
@@ -62,28 +66,35 @@ async def handle_stock(update: Update, context: ContextTypes.DEFAULT_TYPE):
         change = current_price - prev_close
         change_pct = (change / prev_close) * 100
 
-        # حساب مستويات الدعم والمقاومة ومناطق الشراء والخروج
-        support_level = hist['Low'].tail(10).min()   # مستوى الدعم القريب
-        resistance_level = hist['High'].tail(10).max() # مستوى المقاومة القريب
+        # حساب مستويات الدعم والمقاومة بدقة أعلى
+        support_level = hist['Low'].tail(10).min()   # أدنى دعم قريب
+        resistance_level = hist['High'].tail(10).max() # أعلى مقاومة قريبة
 
-        # منطقة الشراء المقترحة (حول مستوى الدعم)
+        # نطاق منطقة الشراء المقترحة
         buy_zone_low = round(support_level * 0.99, 2)
         buy_zone_high = round(support_level * 1.01, 2)
 
-        # منطقة الخروج / الهدف المقترح (حول مستوى المقاومة أو بنسبة ربح مستهدفة)
-        exit_target = round(max(resistance_level, current_price * 1.04), 2)
-        recent_low = hist['Low'].min()
+        # أهداف الخروج (الهدف الأول والهدف الثاني)
+        target_1 = round(current_price * 1.03, 2) # هدف قريب 3%
+        target_2 = round(max(resistance_level, current_price * 1.06), 2) # هدف المقاومة أو 6%
 
-        # تجهيز رسالة الرد المفصلة
+        # وقف الخسارة (لحماية رأس المال أسفل منطقة الشراء)
+        stop_loss = round(buy_zone_low * 0.97, 2)
+
+        # تنسيق اسم السهم ليعرض بشكل صحيح ومنسق في التيليقرام
+        display_symbol = ticker_symbol.replace(".SR", " (Tadawul)").replace(".SA", " (Tadawul)")
+
+        # تجهيز رسالة الرد الاحترافية والمفصلة
         response = (
-            f"📊 **تحليل السهم: {ticker_symbol}**\n\n"
-            f"• السعر الحالي: `{current_price:.2f}`\n"
-            f"• التغير: `{change:+.2f} ({change_pct:+.2f}%)`\n\n"
-            f"🎯 **التحليل الفني والمستويات:**\n"
-            f"• 🟢 **أفضل منطقة شراء:** `{buy_zone_low} - {buy_zone_high}`\n"
-            f"• 🔴 **منطقة الخروج (الهدف):** `{exit_target}`\n"
-            f"• 📉 أدنى سعر شهري: `{recent_low:.2f}`\n\n"
-            f"⚠️ *ملاحظة: هذا التحليل آلي للاستئناس وليس توصية بيع أو شراء مباشرة.*"
+            f"📊 **تقرير تحليل السهم: `{display_symbol}`**\n\n"
+            f"• **السعر الحالي:** `{current_price:.2f}`\n"
+            f"• **التغير:** `{change:+.2f} ({change_pct:+.2f}%)`\n\n"
+            f"🎯 **الرؤية الفنية ومناطق التداول:**\n"
+            f"• 🟢 **منطقة الشراء:** `{buy_zone_low} - {buy_zone_high}`\n"
+            f"• 🎯 **الهدف الأول (خروج):** `{target_1}`\n"
+            f"• 🚀 **الهدف الثاني (خروج):** `{target_2}`\n"
+            f"• 🛑 **وقف الخسارة:** `{stop_loss}`\n\n"
+            f"⚠️ *ملاحظة: هذه الرؤية تحليل آلي لأغراض الاستئناس وليست توصية إلزامية.*"
         )
         await update.message.reply_text(response, parse_mode="Markdown")
 
