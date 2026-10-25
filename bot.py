@@ -2,8 +2,11 @@ import os
 import logging
 import io
 import threading
+import requests
+from requests import Session
 import yfinance as yf
 import pandas as pd
+import numpy as np
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
@@ -38,7 +41,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     await update.message.reply_text(welcome_message)
 
-# دالة جلب البيانات مع فحص اللاحقات لضمان عدم حدوث خطأ
+# دالة جلب البيانات الآمنة باستخدام Session لمنع الحظر وجلب البيانات بدقة
 def fetch_stock_data(text):
     text = text.strip().upper()
     possible_symbols = []
@@ -51,14 +54,22 @@ def fetch_stock_data(text):
     else:
         possible_symbols = [text, f"{text}.SR", f"{text}.SA"]
 
+    # إنشاء جلسة مع هيدرز لتجنب حظر الطلبات من ياهو فاينانس
+    session = Session()
+    session.headers.update({
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    })
+
     for sym in possible_symbols:
         try:
-            stock = yf.Ticker(sym)
+            stock = yf.Ticker(sym, session=session)
             hist = stock.history(period="3mo")
             if not hist.empty and len(hist) > 0 and hist['Close'].iloc[-1] > 0:
                 return hist, sym
-        except Exception:
+        except Exception as e:
+            logger.error(f"Error fetching {sym}: {e}")
             continue
+            
     return None, text
 
 # حساب مؤشر القوة النسبية RSI
@@ -80,7 +91,7 @@ def generate_advanced_chart(hist, ticker_symbol, current_price, buy_zone_low, bu
     ema_50 = hist['Close'].ewm(span=50, adjust=False).mean()
     ax.plot(hist.index, ema_50, color='#fbbf24', linewidth=1.8, linestyle='--', label='متحرك 50 (EMA)')
 
-    # مناطق الشطر والقرار المظللة
+    # مناطق الشراء والقرار المظللة
     ax.axhspan(buy_zone_low, buy_zone_high, color='#22c55e', alpha=0.15, label='منطقة الشراء (الدعم)')
     ax.axhspan(stop_loss, buy_zone_low, color='#ef4444', alpha=0.12, label='منطقة الخطر / وقف الخسارة')
 
