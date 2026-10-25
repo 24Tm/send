@@ -16,7 +16,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     welcome_message = (
         "مرحباً بك! 📈\n\n"
         "أنا بوت تحليل الأسهم. أرسل لي رمز السهم "
-        "(مثل `AAPL` أو `TSLA` للأسهم الأمريكية، أو أرسل رقم السهم السعودي مثل `1820`) "
+        "(مثل `AAPL` للأسهم الأمريكية، أو رقم السهم السعودي مثل `1820`) "
         "وسأعطيك آخر سعر تحليل سريع له."
     )
     await update.message.reply_text(welcome_message)
@@ -25,9 +25,13 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def handle_stock(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.strip().upper()
     
-    # دعم الأسهم السعودية: إذا كان المدخل أرقاماً فقط، أضف له .SR تلقائياً
+    # معالجة ذكية للأسهم السعودية:
     if text.isdigit():
+        # إذا أدخل أرقاماً فقط (مثال: 1820) -> أضف .SR
         ticker_symbol = f"{text}.SR"
+    elif text.endswith("SR") and not text.endswith(".SR"):
+        # إذا كتبه المستخدم هكذا (1820SR) بدون نقطة -> أضف النقطة لتصبح (1820.SR)
+        ticker_symbol = text[:-2] + ".SR"
     else:
         ticker_symbol = text
 
@@ -60,18 +64,15 @@ async def handle_stock(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("حدث خطأ أثناء جلب بيانات السهم. حاول مرة أخرى لاحقاً.")
 
 def main():
-    # سحب توكن البوت من متغيرات البيئة في Render
     token = os.getenv("TELEGRAM_BOT_TOKEN")
     if not token:
         raise ValueError("TELEGRAM_BOT_TOKEN environment variable not set!")
 
     application = ApplicationBuilder().token(token).build()
 
-    # الأوامر والرسائل
     application.add_handler(CommandHandler("start", start))
     application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_stock))
 
-    # تشغيل البوت
     print("Bot is running...")
     application.run_polling()
 
