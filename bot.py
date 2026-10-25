@@ -5,29 +5,25 @@ import pandas as pd
 from telegram import Update
 from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, MessageHandler, filters
 
-# إعداد السجلات (Logging)
+# إعداد السجلات
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
 )
 logger = logging.getLogger(__name__)
 
-# دالة رسالة الترحيب /start
+# قائمة الأسهم الافتراضية للمراقبة التلقائية (يمكنك تعديلها أو إضافتها)
+WATCHLIST_SYMBOLS = ["1120.SR", "1180.SR", "2222.SR", "1010.SR", "7010.SR"]
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     welcome_message = (
-        "مرحباً بك يا غالي! 📈\n\n"
-        "أنا بوت تحليل الأسهم المطور والذكي. أرسل لي رمز السهم "
-        "(مثل `AAPL` للأمريكي، أو رقم السهم السعودي مثل `1120` أو `1820`) وسأعطيك:\n"
-        "• السعر الحالي ونسبة التغير\n"
-        "• أفضل منطقة شراء (الدعم) وأهداف الخروج\n"
-        "• مؤشرات الزخم المتقدمة (RSI و EMA)\n\n"
-        "💡 **الأوامر المتاحة:**\n"
-        "• أرسل رقم أو رمز السهم مباشرة للتحليل.\n"
-        "• أكتب `/scan [الرمز]` لفحص فرص الاختراق والارتداد الذكي."
+        "مرحباً بك يا غالي! 🚀\n\n"
+        "أنا بوت تحليل الأسهم المطور مع **نظام التنبيهات الاستباقية للفرص الانفجارية**.\n\n"
+        "• سأقوم بمراقبة الأسهم وقюم بإرسال تنبيه تلقائي عند رصد فرصة ارتداد أو انفجار سعري.\n"
+        "• يمكنك أيضاً إرسال أي رمز سهم يدوياً في أي وقت للتحليل الفوري."
     )
     await update.message.reply_text(welcome_message)
 
-# دالة مساعدة لتنظيف الرمز وجلب البيانات التاريخية الكافية للمؤشرات (3 أشهر)
 def fetch_stock_data(text):
     text = text.strip().upper()
     possible_symbols = []
@@ -49,7 +45,6 @@ def fetch_stock_data(text):
             continue
     return None, text
 
-# دالة حساب مؤشر القوة النسبية RSI
 def calculate_rsi(series, period=14):
     delta = series.diff()
     gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
@@ -58,15 +53,13 @@ def calculate_rsi(series, period=14):
     rsi = 100 - (100 / (1 + rs))
     return rsi.iloc[-1]
 
-# دالة استقبال وتحليل الأسهم بالطريقة الشاملة
 async def handle_stock(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.strip().upper()
     await update.message.reply_text(f"جاري جلب بيانات وتحليل الزخم للسهم `{text}` ... ⏳")
 
     hist, ticker_symbol = fetch_stock_data(text)
-
     if hist is None or hist.empty:
-        await update.message.reply_text(f"عذراً، لم أتمكن من العثور على بيانات للسهم: `{text}`. تأكد من صحة الرمز.")
+        await update.message.reply_text(f"عذراً، لم أتمكن من العثور على بيانات للسهم: `{text}`.")
         return
 
     try:
@@ -75,7 +68,6 @@ async def handle_stock(update: Update, context: ContextTypes.DEFAULT_TYPE):
         change = current_price - prev_close
         change_pct = (change / prev_close) * 100
 
-        # حساب المستويات الفنية والدعم والمقاومة
         support_level = hist['Low'].tail(10).min()
         resistance_level = hist['High'].tail(10).max()
 
@@ -85,21 +77,12 @@ async def handle_stock(update: Update, context: ContextTypes.DEFAULT_TYPE):
         target_2 = round(max(resistance_level, current_price * 1.06), 2)
         stop_loss = round(buy_zone_low * 0.97, 2)
 
-        # حساب مؤشرات الزخم (RSI والموسط المتحرك الأسي EMA)
         rsi_val = calculate_rsi(hist['Close'])
         ema_50 = hist['Close'].ewm(span=50, adjust=False).mean().iloc[-1]
 
-        # تحديد حالة الزخم واتجاه السهم
         trend_status = "صاعد 🟢" if current_price > ema_50 else "هابط أو تصحيحي 🔴"
-        rsi_status = ""
-        if rsi_val > 70:
-            rsi_status = "تشبع شرائي ⚠️"
-        elif rsi_val < 30:
-            rsi_status = "تشبع بيعي (فرصة ارتداد محتملة) 🟢"
-        else:
-            rsi_status = "متوازن ⚖️"
-
-        display_symbol = ticker_symbol.replace(".SR", " (Tadawul)").replace(".SA", " (Tadawul)")
+        rsi_status = "تشبع شرائي ⚠️" if rsi_val > 70 else ("تشبع بيعي (فرصة ارتداد) 🟢" if rsi_val < 30 else "متوازن ⚖️")
+        display_symbol = ticker_symbol.replace(".SR", " (Tadawul)")
 
         response = (
             f"📊 **تقرير تحليل وزخم السهم: `{display_symbol}`**\n\n"
@@ -109,57 +92,67 @@ async def handle_stock(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"• 🟢 **منطقة الشراء:** `{buy_zone_low} - {buy_zone_high}`\n"
             f"• 🎯 **الهدف الأول:** `{target_1}` | **الهدف الثاني:** `{target_2}`\n"
             f"• 🛑 **وقف الخسارة:** `{stop_loss}`\n\n"
-            f"📉 **تحليل الزخم المتقدم (الفكرة الأولى):**\n"
-            f"• **مؤشر القوة النسبية (RSI):** `{rsi_val:.1f}` ({rsi_status})\n"
-            f"• **اتجاه المتوسط (EMA 50):** {trend_status}\n\n"
-            f"⚠️ *ملاحظة: هذا التحليل آلي للاستئناس وليست توصية مباشرة.*"
+            f"📉 **تحليل الزخم المتقدم:**\n"
+            f"• **RSI:** `{rsi_val:.1f}` ({rsi_status})\n"
+            f"• **الاتجاه (EMA 50):** {trend_status}"
         )
         await update.message.reply_text(response, parse_mode="Markdown")
-
     except Exception as e:
-        logger.error(f"Error analyzing stock {text}: {e}")
-        await update.message.reply_text("حدث خطأ أثناء معالجة بيانات السهم الفنية.")
+        logger.error(f"Error: {e}")
+        await update.message.reply_text("حدث خطأ أثناء معالجة بيانات السهم.")
 
-# دالة الفحص الذكي للفرص (الفكرة الثانية: Smart Scanner)
-async def scan_stock(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not context.args:
-        await update.message.reply_text("الرجاء إدخال رمز السهم بعد الأمر. مثال:\n`/scan 1120` أو `/scan AAPL`", parse_mode="Markdown")
+# دالة الفحص التلقائي وإرسال التنبيهات من ذاته في الخلفية
+async def check_market_explosions(context: ContextTypes.DEFAULT_TYPE):
+    job = context.job
+    chat_id = job.chat_id  # إرسال التنبيه لنفس الشات أو المستخدم الذي تواصل مع البوت
+
+    for sym in WATCHLIST_SYMBOLS:
+        hist, ticker_symbol = fetch_stock_data(sym)
+        if hist is None or hist.empty:
+            continue
+        try:
+            current_price = hist['Close'].iloc[-1]
+            recent_low = hist['Low'].tail(10).min()
+            distance_from_support = ((current_price - recent_low) / recent_low) * 100
+            volume_avg = hist['Volume'].tail(10).mean()
+            current_volume = hist['Volume'].iloc[-1]
+            rsi_val = calculate_rsi(hist['Close'])
+
+            # شروط رصد الفرصة الانفجارية أو الارتدادية
+            if distance_from_support <= 1.2 and rsi_val < 38:
+                alert_msg = (
+                    f"🚨🔥 **تنبيه فرصة انفجار / ارتداد قوية!**\n\n"
+                    f"• السهم: `{ticker_symbol}`\n"
+                    f"• السعر الحالي: `{current_price:.2f}`\n"
+                    f"• السهم يرتكز قرب منطقة دعم قوية بنسبة `{distance_from_support:.2f}%`\n"
+                    f"• مؤشر القوة النسبية RSI منخفض (`{rsi_val:.1f}`) مما يشير لقرب ارتداد صاعد!"
+                )
+                await context.bot.send_message(chat_id=chat_id, text=alert_msg, parse_mode="Markdown")
+            
+            elif current_volume > (volume_avg * 1.8) and current_price > hist['Close'].iloc[-2]:
+                alert_msg = (
+                    f"🚀⚡ **رصد تدفق سيولة واختراق محتمل!**\n\n"
+                    f"• السهم: `{ticker_symbol}`\n"
+                    f"• السعر الحالي: `{current_price:.2f}`\n"
+                    f"• تم رصد ارتفاع غير معتاد في حجم التداول مع حركة إيجابية للسعر."
+                )
+                await context.bot.send_message(chat_id=chat_id, text=alert_msg, parse_mode="Markdown")
+        except Exception as e:
+            logger.error(f"Background check error for {sym}: {e}")
+
+# أمر لتفعيل المراقبة التلقائية وإرسال التنبيهات ذاتياً
+async def start_monitoring(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.effective_chat.id
+    
+    # التأكد من عدم تكرار المهمة لذات المستخدم
+    current_jobs = context.job_queue.get_jobs_by_name(str(chat_id))
+    if current_jobs:
+        await update.message.reply_text("المراقبة التلقائية مفعلة لديك مسبقاً وأنا أراقب السوق لأجلك! 🟢")
         return
 
-    text = context.args[0]
-    await update.message.reply_text(f"🔍 جاري إجراء المسح الذكي لفرص الارتداد والاختراق للسهم `{text}` ... ⏳")
-
-    hist, ticker_symbol = fetch_stock_data(text)
-    if hist is None or hist.empty:
-        await update.message.reply_text(f"عذراً، لم نتمكن من جلب بيانات السهم `{text}` للفحص الذكي.")
-        return
-
-    try:
-        current_price = hist['Close'].iloc[-1]
-        recent_low = hist['Low'].tail(10).min()
-        distance_from_support = ((current_price - recent_low) / recent_low) * 100
-        volume_avg = hist['Volume'].tail(10).mean()
-        current_volume = hist['Volume'].iloc[-1]
-        rsi_val = calculate_rsi(hist['Close'])
-
-        # شروط الفحص الذكي للفرص
-        signal_note = "حالة عادية، انتظر اقتراب السعر أكثر من الدعم."
-        if distance_from_support <= 1.5 and rsi_val < 40:
-            signal_note = "🔥 **فرصة قوية!** السهم يرتكز قرب منطقة دعم رئيسية مع مؤشر RSI منخفض (منطقة ارتداد)."
-        elif current_volume > (volume_avg * 1.5) and current_price > hist['Close'].iloc[-2]:
-            signal_note = "🚀 **تنبيه سيولة واختراق!** رصد زيادة ملحوظة في حجم التداول مع صعود سعري."
-
-        report = (
-            f"📡 **نتيجة الفحص الذكي (Smart Scanner):**\n"
-            f"• الرمز: `{ticker_symbol}`\n"
-            f"• البعد عن الدعم الأخير: `{distance_from_support:.2f}%`\n"
-            f"• تقييم الفرصة: {signal_note}"
-        )
-        await update.message.reply_text(report, parse_mode="Markdown")
-
-    except Exception as e:
-        logger.error(f"Error in scanner for {text}: {e}")
-        await update.message.reply_text("حدث خطأ أثناء عملية المسح الفني.")
+    # جدولة الفحص التلقائي كل ساعة (3600 ثانية) أو كل نصف ساعة
+    context.job_queue.run_repeating(check_market_explosions, interval=3600, first=10, chat_id=chat_id, name=str(chat_id))
+    await update.message.reply_text("✅ تم تفعيل **المراقبة الذاتية التلقائية** بنجاح!\nسأقوم بفحص الأسهم وإرسال تنبيهات فورية لك عند رصد أي فرصة انفجار أو ارتداد.")
 
 def main():
     token = os.getenv("TELEGRAM_BOT_TOKEN")
@@ -169,10 +162,10 @@ def main():
     application = ApplicationBuilder().token(token).build()
 
     application.add_handler(CommandHandler("start", start))
-    application.add_handler(CommandHandler("scan", scan_stock))
+    application.add_handler(CommandHandler("monitor", start_monitoring))
     application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_stock))
 
-    print("Bot is running with Advanced Features...")
+    print("Bot is running with Proactive Alerts...")
     application.run_polling()
 
 if __name__ == '__main__':
