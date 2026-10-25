@@ -3,8 +3,6 @@ import logging
 import io
 import threading
 import requests
-from requests import Session
-import yfinance as yf
 import pandas as pd
 import numpy as np
 import matplotlib
@@ -26,7 +24,7 @@ app_web = Flask('')
 
 @app_web.route('/')
 def home():
-    return "Bot is active and running 24/7!"
+    return "Bot is active and running 24/7[span_0](start_span)!"[span_0](end_span)
 
 def run_web():
     app_web.run(host='0.0.0.0', port=int(os.environ.get("PORT", 8080)))
@@ -41,13 +39,44 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     await update.message.reply_text(welcome_message)
 
-# دالة جلب البيانات مع إعطاء الأولوية لللاحقة الصحيحة .SR في السوق السعودي
+# دالة جلب البيانات مباشرة عبر API لضمان عدم الحظر وسرعة الاستجابة
+def fetch_stock_data_json(symbol):
+    url = f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}?range=3mo&interval=1d"
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    }
+    try:
+        response = requests.get(url, headers=headers, timeout=10)
+        if response.status_code != 200:
+            return None
+        data = response.json()
+        result = data['chart']['result']
+        if not result:
+            return None
+        
+        timestamps = result[0]['timestamp']
+        quote = result[0]['indicators']['quote'][0]
+        
+        df = pd.DataFrame({
+            'Open': quote.get('open', []),
+            'High': quote.get('high', []),
+            'Low': quote.get('low', []),
+            'Close': quote.get('close', []),
+            'Volume': quote.get('volume', [])
+        }, index=pd.to_datetime(timestamps, unit='s'))
+        
+        df.dropna(inplace=True)
+        if not df.empty and df['Close'].iloc[-1] > 0:
+            return df
+    except Exception as e:
+        logger.error(f"Error fetching JSON for {symbol}: {e}")
+    return None
+
 def fetch_stock_data(text):
     text = text.strip().upper()
     possible_symbols = []
     
     if text.isdigit():
-        # الأولوية لللاحقة .SR المعتمدة في ياهو فاينانس للأسهم السعودية
         possible_symbols = [f"{text}.SR", f"{text}.SA", text]
     elif text.endswith("SR") and not text.endswith(".SR"):
         base = text[:-2].strip()
@@ -55,21 +84,10 @@ def fetch_stock_data(text):
     else:
         possible_symbols = [text, f"{text}.SR", f"{text}.SA"]
 
-    # إنشاء جلسة مع هيدرز لتجنب حظر الطلبات من ياهو فاينانس
-    session = Session()
-    session.headers.update({
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-    })
-
     for sym in possible_symbols:
-        try:
-            stock = yf.Ticker(sym, session=session)
-            hist = stock.history(period="3mo")
-            if not hist.empty and len(hist) > 0 and hist['Close'].iloc[-1] > 0:
-                return hist, sym
-        except Exception as e:
-            logger.error(f"Error fetching {sym}: {e}")
-            continue
+        df = fetch_stock_data_json(sym)
+        if df is not None and not df.empty:
+            return df, sym
             
     return None, text
 
