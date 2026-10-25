@@ -17,7 +17,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "مرحباً بك! 📈\n\n"
         "أنا بوت تحليل الأسهم. أرسل لي رمز السهم "
         "(مثل `AAPL` للأسهم الأمريكية، أو رقم السهم السعودي مثل `1820`) "
-        "وسأعطيك آخر سعر تحليل سريع له."
+        "وسأعطيك تحليلاً سريعاً يشتمل على السعر ومنطقة الشراء المقترحة."
     )
     await update.message.reply_text(welcome_message)
 
@@ -25,25 +25,35 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def handle_stock(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.strip().upper()
     
-    # معالجة ذكية للأسهم السعودية:
+    # محاولة تجربة أكثر من صيغة للسوق السعودي لضمان جلب البيانات
+    possible_symbols = []
     if text.isdigit():
-        # إذا أدخل أرقاماً فقط (مثال: 1820) -> أضف .SR
-        ticker_symbol = f"{text}.SR"
+        possible_symbols = [f"{text}.SR", f"{text}.SA", text]
     elif text.endswith("SR") and not text.endswith(".SR"):
-        # إذا كتبه المستخدم هكذا (1820SR) بدون نقطة -> أضف النقطة لتصبح (1820.SR)
-        ticker_symbol = text[:-2] + ".SR"
+        base = text[:-2]
+        possible_symbols = [f"{base}.SR", f"{base}.SA", text]
     else:
-        ticker_symbol = text
+        possible_symbols = [text]
 
-    await update.message.reply_text(f"جاري جلب بيانات السهم `{ticker_symbol}` ... ⏳")
+    await update.message.reply_text(f"جاري جلب بيانات وتحليل السهم `{text}` ... ⏳")
+
+    hist = None
+    ticker_symbol = text
 
     try:
-        # جلب بيانات السهم باستخدام yfinance
-        stock = yf.Ticker(ticker_symbol)
-        hist = stock.history(period="5d")
+        for sym in possible_symbols:
+            stock = yf.Ticker(sym)
+            temp_hist = stock.history(period="1mo")
+            if not temp_hist.empty:
+                hist = temp_hist
+                ticker_symbol = sym
+                break
 
-        if hist.empty:
-            await update.message.reply_text(f"عذراً، لم أتمكن من العثور على بيانات للسهم: `{ticker_symbol}`. تأكد من صحة الرمز.")
+        if hist is None or hist.empty:
+            await update.message.reply_text(
+                f"عذراً، لم أتمكن من العثور على بيانات للسهم: `{text}`.\n"
+                "ملاحظة: بعض الأسهم قد تتطلب رمزها الكامل المعتمد في Yahoo Finance."
+            )
             return
 
         current_price = hist['Close'].iloc[-1]
@@ -51,16 +61,26 @@ async def handle_stock(update: Update, context: ContextTypes.DEFAULT_TYPE):
         change = current_price - prev_close
         change_pct = (change / prev_close) * 100
 
-        # تجهيز رسالة الرد
+        # حساب منطقة شراء مقترحة
+        support_level = hist['Low'].tail(10).min()
+        buy_zone_low = round(support_level * 0.99, 2)
+        buy_zone_high = round(support_level * 1.01, 2)
+        recent_low = hist['Low'].min()
+
+        # تجهيز رسالة الرد المفصلة
         response = (
             f"📊 **تحليل السهم: {ticker_symbol}**\n\n"
             f"• السعر الحالي: `{current_price:.2f}`\n"
-            f"• التغير: `{change:+.2f} ({change_pct:+.2f}%)`\n"
+            f"• التغير: `{change:+.2f} ({change_pct:+.2f}%)`\n\n"
+            f"🎯 **التحليل الفني المقترح:**\n"
+            f"• أفضل منطقة شراء (دعم): `{buy_zone_low} - {buy_zone_high}`\n"
+            f"• أدنى سعر شهري مسجل: `{recent_low:.2f}`\n\n"
+            f"⚠️ *ملاحظة: هذا التحليل آلي للاستئناس وليس توصية مباشرة.*"
         )
         await update.message.reply_text(response, parse_mode="Markdown")
 
     except Exception as e:
-        logger.error(f"Error fetching data for {ticker_symbol}: {e}")
+        logger.error(f"Error fetching data for {text}: {e}")
         await update.message.reply_text("حدث خطأ أثناء جلب بيانات السهم. حاول مرة أخرى لاحقاً.")
 
 def main():
