@@ -9,13 +9,14 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from flask import Flask
 import re
+import json
 
 # ==================== خادم الويب للحفاظ على التشغيل 24/7 ====================
 app = Flask(__name__)
 
 @app.route('/')
 def home():
-    return "Institutional Context-Aware AI Bot is active and running 24/7!", 200
+    return "Institutional Context-Aware AI Bot with User Tracking is active and running 24/7!", 200
 
 def run_flask():
     port = int(os.environ.get("PORT", 10000))
@@ -29,6 +30,25 @@ WATCHLIST = [
     "1120.SR", "1180.SR", "2222.SR", "1211.SR", "2010.SR", 
     "1301.SR", "4200.SR", "7010.SR", "1820.SR", "4300.SR"
 ]
+
+# ملف سري لتسجيل معرفات المستخدمين (لإحصاءات الاستخدام بدقة)
+USERS_FILE = "users_stats.json"
+
+def load_users():
+    if os.path.exists(USERS_FILE):
+        try:
+            with open(USERS_FILE, "r") as f:
+                return set(json.load(f))
+        except:
+            return set()
+    return set()
+
+def save_user(user_id):
+    users = load_users()
+    if user_id not in users:
+        users.add(user_id)
+        with open(USERS_FILE, "w") as f:
+            json.dump(list(users), f)
 
 def calculate_indicators(df):
     df['EMA50'] = df['Close'].ewm(span=50, adjust=False).mean()
@@ -130,19 +150,27 @@ def get_inline_keyboard(symbol):
 
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
+    save_user(message.chat.id)
     text = (
         "🏛 **مرحباً بك في مستشارك المالي والمساعد الذكي للسوق السعودي (Tadawul)**\n\n"
         "• تحليل فني متقدم مع رادار السيولة وحاسبة تعديل التكلفة.\n"
-        "• **ميزة السياق الذكي:** إذا سألت عن سهم معين في كلامك (مثل: *ما هي مناطق دعم سهم 1820*)، سيستخرج البوت رقم السهم ويجيبك فوراً بالتحليل والشارت!\n\n"
+        "• **ميزة السياق الذكي:** اسأل عن أي سهم في جملتك (مثل: *ما هي مناطق دعم سهم 1820*) وسيحلله البوت فوراً!\n\n"
         "👇 **اختر من الأزرار أدناه، أو أرسل رمز السهم، أو اكتب سؤالك:**"
     )
     bot.reply_to(message, text, parse_mode="Markdown", reply_markup=get_main_keyboard())
 
+@bot.message_handler(commands=['stats', 'users'])
+def show_user_stats(message):
+    save_user(message.chat.id)
+    users_count = len(load_users())
+    bot.reply_to(message, f"📊 **لوحة الإحصائيات السرية:**\n\n• إجمالي عدد الأشخاص الذين استخدموا البوت: **{users_count}** مستخدم فريد.", parse_mode="Markdown")
+
 @bot.message_handler(func=lambda message: message.text and "المساعدة" in message.text)
 def send_help(message):
+    save_user(message.chat.id)
     text = (
         "⚙️ **دليل الاستخدام الشامل:**\n"
-        "1️⃣ **السياق الذكي:** اكتب سؤالك واذكر رقم السهم (مثل: `أين دعم سهم 1820؟`) وسيفهمك البوت فوراً.\n"
+        "1️⃣ **السياق الذكي:** اكتب سؤالك واذكر رقم السهم (مثل: `أين دعم سهم 1820؟`).\n"
         "2️⃣ **البحث المباشر:** أرسل رقم السهم (مثل `2222`).\n"
         "3️⃣ **حاسبة التعديل:** أرسل `تعديل [الرمز] [كميتك] [متوسطك] [الكمية الجديدة]`"
     )
@@ -150,6 +178,7 @@ def send_help(message):
 
 @bot.message_handler(func=lambda message: message.text and "فحص الفرص" in message.text)
 def scan_targets(message):
+    save_user(message.chat.id)
     bot.reply_to(message, "🔍 جاري فحص رادار السيولة وأحجام التداول في السوق السعودي...", reply_markup=get_main_keyboard())
     found = False
     for symbol in WATCHLIST:
@@ -199,6 +228,7 @@ def scan_targets(message):
 
 @bot.message_handler(func=lambda message: message.text and ("السوق السعودي اليومي" in message.text or "التحليل الأسبوعي" in message.text))
 def quick_menus(message):
+    save_user(message.chat.id)
     interval = "1wk" if "الأسبوعي" in message.text else "1d"
     symbol = "1120.SR"
     tf_desc = "الإطار الأسبوعي طويل الأجل" if interval == "1wk" else "الإطار اليومي"
@@ -229,6 +259,7 @@ def quick_menus(message):
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("tf_") or call.data.startswith("dca_"))
 def handle_inline_callbacks(call):
+    save_user(call.message.chat.id)
     if call.data.startswith("tf_"):
         parts = call.data.split("_")
         interval = parts[1]
@@ -276,6 +307,7 @@ def handle_inline_callbacks(call):
 
 @bot.message_handler(func=lambda message: message.text and message.text.strip().startswith("تعديل"))
 def calculate_dca_result(message):
+    save_user(message.chat.id)
     try:
         parts = message.text.strip().split()
         if len(parts) < 5:
@@ -319,13 +351,12 @@ def calculate_dca_result(message):
 
 @bot.message_handler(func=lambda message: True)
 def handle_context_aware_message(message):
+    save_user(message.chat.id)
     text = message.text.strip()
     
-    # محاولة استخراج رقم سهم (من 3 إلى 5 أرقام) من داخل نص السؤال (مثل "ماهي مناطق دعم سهم 1820")
     numbers_found = re.findall(r'\b\d{3,5}\b', text)
     
     if numbers_found or text.upper().endswith(".SR") or text.isdigit():
-        # إذا وجدنا رقماً في السؤال، نعتبره هو السهم المستهدف ونقوم بتحليله فوراً حسب السياق!
         target_num = numbers_found[0] if numbers_found else text.upper().replace(".SR", "")
         symbol = target_num + ".SR"
         
@@ -371,10 +402,9 @@ def handle_context_aware_message(message):
         with open(chart_path, 'rb') as photo:
             bot.send_photo(message.chat.id, photo, caption=response, parse_mode="Markdown", reply_markup=get_inline_keyboard(symbol))
     else:
-        # إذا كان السؤال نصاً عاماً بدون رقم سهم
         chat_reply = (
             f"🤖 **مرحباً بك يا غالي:**\n\n"
-            f"لقد استستلمت سؤالك: *\"{text}\"*\n\n"
+            f"لقد استلمت سؤالك: *\"{text}\"*\n\n"
             f"💡 لكي أجيبك بدقة على نفس سياق سؤالك، يرجى **ذكر رقم السهم** في جملتك (مثال: *ما هي مناطق دعم سهم 1820؟* أو *كيف أحلل سهم 1120؟*)، وسأقوم بتحليله وإرسال الشارت والمستويات فوراً!"
         )
         bot.reply_to(message, chat_reply, parse_mode="Markdown", reply_markup=get_main_keyboard())
@@ -384,5 +414,5 @@ if __name__ == "__main__":
     flask_thread.daemon = True
     flask_thread.start()
     
-    print("Institutional Context-Aware Bot is running...")
+    print("Institutional Context-Aware Bot with User Tracking is running...")
     bot.infinity_polling()
