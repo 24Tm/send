@@ -302,3 +302,4 @@ if __name__ == "__main__":
     
     print("Bot and Flask keep-alive server are starting...")
     bot.infinity_polling()
+    
