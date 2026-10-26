@@ -16,7 +16,7 @@ app = Flask(__name__)
 
 @app.route('/')
 def home():
-    return "Institutional Context-Aware AI Bot with User Tracking is active and running 24/7!", 200
+    return "Institutional Bot with Detailed User Tracking is active and running 24/7!", 200
 
 def run_flask():
     port = int(os.environ.get("PORT", 10000))
@@ -31,24 +31,32 @@ WATCHLIST = [
     "1301.SR", "4200.SR", "7010.SR", "1820.SR", "4300.SR"
 ]
 
-# ملف سري لتسجيل معرفات المستخدمين (لإحصاءات الاستخدام بدقة)
-USERS_FILE = "users_stats.json"
+# ملف سري لتسجيل تفاصيل المستخدمين بدقة
+USERS_FILE = "detailed_users_stats.json"
 
 def load_users():
     if os.path.exists(USERS_FILE):
         try:
-            with open(USERS_FILE, "r") as f:
-                return set(json.load(f))
+            with open(USERS_FILE, "r", encoding="utf-8") as f:
+                return json.load(f) # سيكون عبارة عن قاموس {user_id: {"name": ..., "username": ...}}
         except:
-            return set()
-    return set()
+            return {}
+    return {}
 
-def save_user(user_id):
+def save_user(message):
     users = load_users()
+    user_id = str(message.chat.id)
+    first_name = message.chat.first_name or "مستخدم"
+    username = f"@{message.chat.username}" if message.chat.username else "بدون معرف"
+    
     if user_id not in users:
-        users.add(user_id)
-        with open(USERS_FILE, "w") as f:
-            json.dump(list(users), f)
+        users[user_id] = {
+            "name": first_name,
+            "username": username,
+            "id": user_id
+        }
+        with open(USERS_FILE, "w", encoding="utf-8") as f:
+            json.dump(users, f, ensure_ascii=False, indent=4)
 
 def calculate_indicators(df):
     df['EMA50'] = df['Close'].ewm(span=50, adjust=False).mean()
@@ -150,24 +158,33 @@ def get_inline_keyboard(symbol):
 
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
-    save_user(message.chat.id)
+    save_user(message)
     text = (
         "🏛 **مرحباً بك في مستشارك المالي والمساعد الذكي للسوق السعودي (Tadawul)**\n\n"
         "• تحليل فني متقدم مع رادار السيولة وحاسبة تعديل التكلفة.\n"
-        "• **ميزة السياق الذكي:** اسأل عن أي سهم في جملتك (مثل: *ما هي مناطق دعم سهم 1820*) وسيحلله البوت فوراً!\n\n"
+        "• **ميزة السياق الذكي:** اسأل عن أي سهم في جملتك وسيحلله البوت فوراً!\n\n"
         "👇 **اختر من الأزرار أدناه، أو أرسل رمز السهم، أو اكتب سؤالك:**"
     )
     bot.reply_to(message, text, parse_mode="Markdown", reply_markup=get_main_keyboard())
 
 @bot.message_handler(commands=['stats', 'users'])
 def show_user_stats(message):
-    save_user(message.chat.id)
-    users_count = len(load_users())
-    bot.reply_to(message, f"📊 **لوحة الإحصائيات السرية:**\n\n• إجمالي عدد الأشخاص الذين استخدموا البوت: **{users_count}** مستخدم فريد.", parse_mode="Markdown")
+    save_user(message)
+    users_data = load_users()
+    total_users = len(users_data)
+    
+    details = f"📊 **قائمة المستخدمين الفريدين ({total_users}):**\n\n"
+    for idx, (uid, info) in enumerate(users_data.items(), 1):
+        details += f"{idx}. **{info['name']}** ({info['username']}) - `ID: {uid}`\n"
+        if idx >= 30: # لعرض أول 30 مستخدم حتى لا تكون الرسالة طويلة جداً
+            details += "\n... (المزيد من المستخدمين)"
+            break
+            
+    bot.reply_to(message, details, parse_mode="Markdown")
 
 @bot.message_handler(func=lambda message: message.text and "المساعدة" in message.text)
 def send_help(message):
-    save_user(message.chat.id)
+    save_user(message)
     text = (
         "⚙️ **دليل الاستخدام الشامل:**\n"
         "1️⃣ **السياق الذكي:** اكتب سؤالك واذكر رقم السهم (مثل: `أين دعم سهم 1820؟`).\n"
@@ -178,7 +195,7 @@ def send_help(message):
 
 @bot.message_handler(func=lambda message: message.text and "فحص الفرص" in message.text)
 def scan_targets(message):
-    save_user(message.chat.id)
+    save_user(message)
     bot.reply_to(message, "🔍 جاري فحص رادار السيولة وأحجام التداول في السوق السعودي...", reply_markup=get_main_keyboard())
     found = False
     for symbol in WATCHLIST:
@@ -228,7 +245,7 @@ def scan_targets(message):
 
 @bot.message_handler(func=lambda message: message.text and ("السوق السعودي اليومي" in message.text or "التحليل الأسبوعي" in message.text))
 def quick_menus(message):
-    save_user(message.chat.id)
+    save_user(message)
     interval = "1wk" if "الأسبوعي" in message.text else "1d"
     symbol = "1120.SR"
     tf_desc = "الإطار الأسبوعي طويل الأجل" if interval == "1wk" else "الإطار اليومي"
@@ -259,7 +276,7 @@ def quick_menus(message):
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("tf_") or call.data.startswith("dca_"))
 def handle_inline_callbacks(call):
-    save_user(call.message.chat.id)
+    save_user(call.message)
     if call.data.startswith("tf_"):
         parts = call.data.split("_")
         interval = parts[1]
@@ -307,7 +324,7 @@ def handle_inline_callbacks(call):
 
 @bot.message_handler(func=lambda message: message.text and message.text.strip().startswith("تعديل"))
 def calculate_dca_result(message):
-    save_user(message.chat.id)
+    save_user(message)
     try:
         parts = message.text.strip().split()
         if len(parts) < 5:
@@ -351,7 +368,7 @@ def calculate_dca_result(message):
 
 @bot.message_handler(func=lambda message: True)
 def handle_context_aware_message(message):
-    save_user(message.chat.id)
+    save_user(message)
     text = message.text.strip()
     
     numbers_found = re.findall(r'\b\d{3,5}\b', text)
@@ -414,5 +431,5 @@ if __name__ == "__main__":
     flask_thread.daemon = True
     flask_thread.start()
     
-    print("Institutional Context-Aware Bot with User Tracking is running...")
+    print("Institutional Context-Aware Bot with Detailed User Tracking is running...")
     bot.infinity_polling()
