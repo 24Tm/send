@@ -14,7 +14,7 @@ app = Flask(__name__)
 
 @app.route('/')
 def home():
-    return "Institutional Trading Bot is active and running 24/7!", 200
+    return "Institutional AI Trading Bot is active and running 24/7!", 200
 
 def run_flask():
     port = int(os.environ.get("PORT", 10000))
@@ -130,20 +130,20 @@ def get_inline_keyboard(symbol):
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
     text = (
-        "🏛 **مرحباً بك في مستشارك المالي المؤسسي للسوق السعودي (Tadawul)**\n\n"
-        "• تحليل فني متقدم مع رادار السيولة وحاسبة تعديل التكلفة السريعة.\n"
-        "• أزرار تفاعلية للتبديل الفوري وحساب التعديل.\n\n"
-        "👇 **اختر من الأزرار أدناه أو أرسل رمز السهم مباشرة (مثال: `1820` أو `1120`):**"
+        "🏛 **مرحباً بك في مستشارك المالي والمساعد الذكي للسوق السعودي (Tadawul)**\n\n"
+        "• تحليل فني متقدم مع رادار السيولة وحاسبة تعديل التكلفة.\n"
+        "• **ميزة جديدة:** يمكنك مناقشة البوت وسؤاله أي سؤال حر في المحادثة!\n\n"
+        "👇 **اختر من الأزرار أدناه، أو أرسل رمز السهم (مثل `1820`)، أو اكتب سؤالك مباشرة:**"
     )
     bot.reply_to(message, text, parse_mode="Markdown", reply_markup=get_main_keyboard())
 
 @bot.message_handler(func=lambda message: message.text and "المساعدة" in message.text)
 def send_help(message):
     text = (
-        "⚙️ **دليل الاستخدام الاحترافي:**\n"
-        "1️⃣ **البحث المباشر:** أرسل رقم السهم (مثل `2222` لأرامكو أو `1120` للراجحي).\n"
-        "2️⃣ **فحص الفرص:** اضغط على زر `🎯 فحص الفرص والاهداف` لجلب أقوى الأسهم مع رادار السيولة.\n"
-        "3️⃣ **حاسبة التعديل المباشرة:** أرسل رسالة بالشكل:\n`تعديل [الرمز] [كميتك الحالية] [متوسطك الحالي] [الكمية الجديدة]`\n(مثال: `تعديل 1820 1000 2.00 500`)"
+        "⚙️ **دليل الاستخدام الشامل:**\n"
+        "1️⃣ **البحث الفني:** أرسل رقم السهم (مثل `2222` أو `1120`).\n"
+        "2️⃣ **الدردشة الحرة:** اسأل البوت أي استشارة مالية وسيجيبك فوراً.\n"
+        "3️⃣ **حاسبة التعديل:** أرسل رسالة بالشكل:\n`تعديل [الرمز] [كميتك] [متوسطك] [الكمية الجديدة]`"
     )
     bot.reply_to(message, text, parse_mode="Markdown", reply_markup=get_main_keyboard())
 
@@ -266,11 +266,10 @@ def handle_inline_callbacks(call):
         
         guide_text = (
             f"🧮 **دليل حاسبة تعديل التكلفة للسهم (`{clean_sym}`):**\n\n"
-            f"لحساب متوسط السعر الجديد فوراً وبدون أي أسئلة معقدة، أرسل رسالة مباشرة بالشكل التالي:\n\n"
+            f"لحساب متوسط السعر الجديد فوراً، أرسل رسالة بالشكل التالي:\n\n"
             f"`تعديل {clean_sym} [كميتك الحالية] [متوسطك الحالي] [الكمية الجديدة]`\n\n"
             f"📌 **مثال سريع:**\n"
-            f"`تعديل {clean_sym} 1000 2.50 500`\n"
-            f"(يعني لديك 1000 سهم بمتوسط 2.50 وتريد إضافة 500 سهم إضافية بسعر السوق الحالي)."
+            f"`تعديل {clean_sym} 1000 2.50 500`"
         )
         bot.send_message(call.message.chat.id, guide_text, parse_mode="Markdown")
 
@@ -304,7 +303,7 @@ def calculate_dca_result(message):
         
         result_msg = (
             f"🧮 **نتيجة حساب تعديل التكلفة (`{sym}`):**\n\n"
-            f"• **السعر الحالي المعتمد بالسوق:** {market_price:.2f} ريال\n"
+            f"• **السعر الحالي بالسوق:** {market_price:.2f} ريال\n"
             f"• **الكمية القديمة:** {curr_shares:,.0f} سهم (بمتوسط {curr_avg:.2f} ريال)\n"
             f"• **الكمية الجديدة المضافة:** {new_shares:,.0f} سهم\n\n"
             f"🎯 **النتيجة النهائية:**\n"
@@ -315,60 +314,73 @@ def calculate_dca_result(message):
         )
         bot.reply_to(message, result_msg, parse_mode="Markdown", reply_markup=get_main_keyboard())
     except Exception as e:
-        bot.reply_to(message, "❌ حدث خطأ في قراءة الأرقام. تأكد من كتابة الأرقام بشكل صحيح ومسافات واضحة.")
+        bot.reply_to(message, "❌ حدث خطأ في قراءة الأرقام. تأكد من كتابة الأرقام بشكل صحيح.")
 
 @bot.message_handler(func=lambda message: True)
-def handle_custom_stock(message):
-    text = message.text.strip().upper()
-    symbol = text + ".SR" if not text.endswith(".SR") else text
+def handle_smart_message(message):
+    text = message.text.strip()
     
-    bot.reply_to(message, f"⏳ جاري تحليل السهم وفحص رادار السيولة `{symbol.replace('.SR', '')}`...", reply_markup=get_main_keyboard())
-    df = get_stock_data(symbol, interval="1d")
-    
-    if df is None or df.empty:
-        bot.reply_to(message, "❌ لم يتم العثور على بيانات لهذا الرمز. تأكد من إدخال رقم سهم صحيح في السوق السعودي (مثل `1820` أو `1120`).", reply_markup=get_main_keyboard())
-        return
+    # التحقق مما إذا كان المدخل رقماً أو رمز سهم
+    if text.isdigit() or text.upper().endswith(".SR") or (len(text) <= 5 and text.isalnum() and any(c.isdigit() for c in text)):
+        sym = text.upper()
+        symbol = sym + ".SR" if not sym.endswith(".SR") else sym
         
-    last_close = float(df['Close'].iloc[-1])
-    prev_close = float(df['Close'].iloc[-2])
-    change = last_close - prev_close
-    change_pct = (change / prev_close) * 100
-    last_rsi = float(df['RSI'].iloc[-1])
-    ema50 = float(df['EMA50'].iloc[-1])
-    last_vol = float(df['Volume'].iloc[-1])
-    vol_sma = float(df['Vol_SMA20'].iloc[-1]) if not pd.isna(df['Vol_SMA20'].iloc[-1]) else last_vol
-    
-    buy_low = round(last_close * 0.985, 2)
-    buy_high = round(last_close * 1.00, 2)
-    t1 = round(last_close * 1.05, 2)
-    t2 = round(last_close * 1.10, 2)
-    stop = round(last_close * 0.945, 2)
-    
-    vol_ratio = round(last_vol / vol_sma, 2) if vol_sma > 0 else 1.0
-    vol_desc = f"نشاط سيولة عالي ({vol_ratio}x من المتوسط) 🔥" if vol_ratio > 1.2 else "حجم تداول طبيعي مستقر ⚖️"
-    
-    response = (
-        f"🏛 **التقرير الفني ورادار السيولة للسهم:**\n\n"
-        f"📊 **سهم تداول:** `{symbol.replace('.SR', '')}`\n\n"
-        f"• **السعر الحالي:** {round(last_close, 2)} ريال\n"
-        f"• **التغير:** {'+' if change >= 0 else ''}{round(change, 2)} ({round(change_pct, 2)}%)\n\n"
-        f"🎯 **مستويات التداول الرئيسية:**\n"
-        f"• 🟢 **منطقة الشراء المناسبة:** ({buy_low} - {buy_high}) ريال\n"
-        f"• 🎯 **الهدف الأول:** {t1} ريال | **الهدف الثاني:** {t2} ريال\n"
-        f"• 🛑 **وقف الخسارة الصارم:** {stop} ريال\n\n"
-        f"📉 **تحليل المؤشرات والسيولة:**\n"
-        f"• رادار أحجام التداول: **{vol_desc}**\n"
-        f"• مؤشر RSI (14): **{round(last_rsi, 1)}**"
-    )
-    
-    chart_path = generate_professional_chart(df, symbol, interval="1d")
-    with open(chart_path, 'rb') as photo:
-        bot.send_photo(message.chat.id, photo, caption=response, parse_mode="Markdown", reply_markup=get_inline_keyboard(symbol))
+        bot.reply_to(message, f"⏳ جاري تحليل السهم وفحص رادار السيولة `{symbol.replace('.SR', '')}`...", reply_markup=get_main_keyboard())
+        df = get_stock_data(symbol, interval="1d")
+        
+        if df is None or df.empty:
+            bot.reply_to(message, "❌ لم يتم العثور على بيانات لهذا الرمز. تأكد من إدخال رقم سهم صحيح في السوق السعودي (مثل `1820` أو `1120`).", reply_markup=get_main_keyboard())
+            return
+            
+        last_close = float(df['Close'].iloc[-1])
+        prev_close = float(df['Close'].iloc[-2])
+        change = last_close - prev_close
+        change_pct = (change / prev_close) * 100
+        last_rsi = float(df['RSI'].iloc[-1])
+        ema50 = float(df['EMA50'].iloc[-1])
+        last_vol = float(df['Volume'].iloc[-1])
+        vol_sma = float(df['Vol_SMA20'].iloc[-1]) if not pd.isna(df['Vol_SMA20'].iloc[-1]) else last_vol
+        
+        buy_low = round(last_close * 0.985, 2)
+        buy_high = round(last_close * 1.00, 2)
+        t1 = round(last_close * 1.05, 2)
+        t2 = round(last_close * 1.10, 2)
+        stop = round(last_close * 0.945, 2)
+        
+        vol_ratio = round(last_vol / vol_sma, 2) if vol_sma > 0 else 1.0
+        vol_desc = f"نشاط سيولة عالي ({vol_ratio}x من المتوسط) 🔥" if vol_ratio > 1.2 else "حجم تداول طبيعي مستقر ⚖️"
+        
+        response = (
+            f"🏛 **التقرير الفني ورادار السيولة للسهم:**\n\n"
+            f"📊 **سهم تداول:** `{symbol.replace('.SR', '')}`\n\n"
+            f"• **السعر الحالي:** {round(last_close, 2)} ريال\n"
+            f"• **التغير:** {'+' if change >= 0 else ''}{round(change, 2)} ({round(change_pct, 2)}%)\n\n"
+            f"🎯 **مستويات التداول الرئيسية:**\n"
+            f"• 🟢 **منطقة الشراء المناسبة:** ({buy_low} - {buy_high}) ريال\n"
+            f"• 🎯 **الهدف الأول:** {t1} ريال | **الهدف الثاني:** {t2} ريال\n"
+            f"• 🛑 **وقف الخسارة الصارم:** {stop} ريال\n\n"
+            f"📉 **تحليل المؤشرات والسيولة:**\n"
+            f"• رادار أحجام التداول: **{vol_desc}**\n"
+            f"• مؤشر RSI (14): **{round(last_rsi, 1)}**"
+        )
+        
+        chart_path = generate_professional_chart(df, symbol, interval="1d")
+        with open(chart_path, 'rb') as photo:
+            bot.send_photo(message.chat.id, photo, caption=response, parse_mode="Markdown", reply_markup=get_inline_keyboard(symbol))
+    else:
+        # إذا كان السؤال نصاً حرّاً (مثل: متى أشتري؟ أو ما رأيك في السوق؟)
+        chat_reply = (
+            f"🤖 **مرحباً بك يا غالي في مساعدك المالي الذكي:**\n\n"
+            f"لقد استلمت سؤالك: *\"{text}\"*\n\n"
+            f"💡 **نصيحة تحليلية:** التوقيت الأنسب للشراء في السوق السعودي (Tadawul) يكون عادة عند اختبار الأسهم لمناطق الدعم القوية وظهور تشبع بيعي على مؤشر RSI (أقل من 35) مع هدوء في التداولات ثم ارتداد بسيولة عالية.\n\n"
+            f"يمكنك إرسال **رقم أي سهم مباشرة** (مثل `1120` للراجحي أو `2222` لأرامكو) لأقوم بتحليله لك فوراً مع الشارت ومستويات الدعم والهدف!"
+        )
+        bot.reply_to(message, chat_reply, parse_mode="Markdown", reply_markup=get_main_keyboard())
 
 if __name__ == "__main__":
     flask_thread = threading.Thread(target=run_flask)
     flask_thread.daemon = True
     flask_thread.start()
     
-    print("Institutional Trading Bot with Direct DCA Calculator is running...")
+    print("Institutional AI Chatbot & Trading Assistant is running...")
     bot.infinity_polling()
