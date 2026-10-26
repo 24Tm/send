@@ -8,13 +8,14 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from flask import Flask
+import re
 
 # ==================== خادم الويب للحفاظ على التشغيل 24/7 ====================
 app = Flask(__name__)
 
 @app.route('/')
 def home():
-    return "Institutional AI Trading Bot is active and running 24/7!", 200
+    return "Institutional Context-Aware AI Bot is active and running 24/7!", 200
 
 def run_flask():
     port = int(os.environ.get("PORT", 10000))
@@ -132,8 +133,8 @@ def send_welcome(message):
     text = (
         "🏛 **مرحباً بك في مستشارك المالي والمساعد الذكي للسوق السعودي (Tadawul)**\n\n"
         "• تحليل فني متقدم مع رادار السيولة وحاسبة تعديل التكلفة.\n"
-        "• **ميزة جديدة:** يمكنك مناقشة البوت وسؤاله أي سؤال حر في المحادثة!\n\n"
-        "👇 **اختر من الأزرار أدناه، أو أرسل رمز السهم (مثل `1820`)، أو اكتب سؤالك مباشرة:**"
+        "• **ميزة السياق الذكي:** إذا سألت عن سهم معين في كلامك (مثل: *ما هي مناطق دعم سهم 1820*)، سيستخرج البوت رقم السهم ويجيبك فوراً بالتحليل والشارت!\n\n"
+        "👇 **اختر من الأزرار أدناه، أو أرسل رمز السهم، أو اكتب سؤالك:**"
     )
     bot.reply_to(message, text, parse_mode="Markdown", reply_markup=get_main_keyboard())
 
@@ -141,9 +142,9 @@ def send_welcome(message):
 def send_help(message):
     text = (
         "⚙️ **دليل الاستخدام الشامل:**\n"
-        "1️⃣ **البحث الفني:** أرسل رقم السهم (مثل `2222` أو `1120`).\n"
-        "2️⃣ **الدردشة الحرة:** اسأل البوت أي استشارة مالية وسيجيبك فوراً.\n"
-        "3️⃣ **حاسبة التعديل:** أرسل رسالة بالشكل:\n`تعديل [الرمز] [كميتك] [متوسطك] [الكمية الجديدة]`"
+        "1️⃣ **السياق الذكي:** اكتب سؤالك واذكر رقم السهم (مثل: `أين دعم سهم 1820؟`) وسيفهمك البوت فوراً.\n"
+        "2️⃣ **البحث المباشر:** أرسل رقم السهم (مثل `2222`).\n"
+        "3️⃣ **حاسبة التعديل:** أرسل `تعديل [الرمز] [كميتك] [متوسطك] [الكمية الجديدة]`"
     )
     bot.reply_to(message, text, parse_mode="Markdown", reply_markup=get_main_keyboard())
 
@@ -317,19 +318,22 @@ def calculate_dca_result(message):
         bot.reply_to(message, "❌ حدث خطأ في قراءة الأرقام. تأكد من كتابة الأرقام بشكل صحيح.")
 
 @bot.message_handler(func=lambda message: True)
-def handle_smart_message(message):
+def handle_context_aware_message(message):
     text = message.text.strip()
     
-    # التحقق مما إذا كان المدخل رقماً أو رمز سهم
-    if text.isdigit() or text.upper().endswith(".SR") or (len(text) <= 5 and text.isalnum() and any(c.isdigit() for c in text)):
-        sym = text.upper()
-        symbol = sym + ".SR" if not sym.endswith(".SR") else sym
+    # محاولة استخراج رقم سهم (من 3 إلى 5 أرقام) من داخل نص السؤال (مثل "ماهي مناطق دعم سهم 1820")
+    numbers_found = re.findall(r'\b\d{3,5}\b', text)
+    
+    if numbers_found or text.upper().endswith(".SR") or text.isdigit():
+        # إذا وجدنا رقماً في السؤال، نعتبره هو السهم المستهدف ونقوم بتحليله فوراً حسب السياق!
+        target_num = numbers_found[0] if numbers_found else text.upper().replace(".SR", "")
+        symbol = target_num + ".SR"
         
-        bot.reply_to(message, f"⏳ جاري تحليل السهم وفحص رادار السيولة `{symbol.replace('.SR', '')}`...", reply_markup=get_main_keyboard())
+        bot.reply_to(message, f"⏳ فهمت قصدك! جاري تحليل السهم `{target_num}` وجلب مستويات الدعم والشارت بناءً على سؤالك...", reply_markup=get_main_keyboard())
         df = get_stock_data(symbol, interval="1d")
         
         if df is None or df.empty:
-            bot.reply_to(message, "❌ لم يتم العثور على بيانات لهذا الرمز. تأكد من إدخال رقم سهم صحيح في السوق السعودي (مثل `1820` أو `1120`).", reply_markup=get_main_keyboard())
+            bot.reply_to(message, f"❌ لم يتم العثور على بيانات للسهم `{target_num}`. تأكد من صحة رقم السهم في السوق السعودي.", reply_markup=get_main_keyboard())
             return
             
         last_close = float(df['Close'].iloc[-1])
@@ -351,12 +355,11 @@ def handle_smart_message(message):
         vol_desc = f"نشاط سيولة عالي ({vol_ratio}x من المتوسط) 🔥" if vol_ratio > 1.2 else "حجم تداول طبيعي مستقر ⚖️"
         
         response = (
-            f"🏛 **التقرير الفني ورادار السيولة للسهم:**\n\n"
-            f"📊 **سهم تداول:** `{symbol.replace('.SR', '')}`\n\n"
+            f"🏛 **رد تحليلي حسب سؤالك (سهم `{target_num}`):**\n\n"
             f"• **السعر الحالي:** {round(last_close, 2)} ريال\n"
             f"• **التغير:** {'+' if change >= 0 else ''}{round(change, 2)} ({round(change_pct, 2)}%)\n\n"
-            f"🎯 **مستويات التداول الرئيسية:**\n"
-            f"• 🟢 **منطقة الشراء المناسبة:** ({buy_low} - {buy_high}) ريال\n"
+            f"🎯 **مستويات الدعم والهدف بناءً على طلبك:**\n"
+            f"• 🟢 **منطقة الدعم والشراء المناسبة:** ({buy_low} - {buy_high}) ريال\n"
             f"• 🎯 **الهدف الأول:** {t1} ريال | **الهدف الثاني:** {t2} ريال\n"
             f"• 🛑 **وقف الخسارة الصارم:** {stop} ريال\n\n"
             f"📉 **تحليل المؤشرات والسيولة:**\n"
@@ -368,12 +371,11 @@ def handle_smart_message(message):
         with open(chart_path, 'rb') as photo:
             bot.send_photo(message.chat.id, photo, caption=response, parse_mode="Markdown", reply_markup=get_inline_keyboard(symbol))
     else:
-        # إذا كان السؤال نصاً حرّاً (مثل: متى أشتري؟ أو ما رأيك في السوق؟)
+        # إذا كان السؤال نصاً عاماً بدون رقم سهم
         chat_reply = (
-            f"🤖 **مرحباً بك يا غالي في مساعدك المالي الذكي:**\n\n"
-            f"لقد استلمت سؤالك: *\"{text}\"*\n\n"
-            f"💡 **نصيحة تحليلية:** التوقيت الأنسب للشراء في السوق السعودي (Tadawul) يكون عادة عند اختبار الأسهم لمناطق الدعم القوية وظهور تشبع بيعي على مؤشر RSI (أقل من 35) مع هدوء في التداولات ثم ارتداد بسيولة عالية.\n\n"
-            f"يمكنك إرسال **رقم أي سهم مباشرة** (مثل `1120` للراجحي أو `2222` لأرامكو) لأقوم بتحليله لك فوراً مع الشارت ومستويات الدعم والهدف!"
+            f"🤖 **مرحباً بك يا غالي:**\n\n"
+            f"لقد استستلمت سؤالك: *\"{text}\"*\n\n"
+            f"💡 لكي أجيبك بدقة على نفس سياق سؤالك، يرجى **ذكر رقم السهم** في جملتك (مثال: *ما هي مناطق دعم سهم 1820؟* أو *كيف أحلل سهم 1120؟*)، وسأقوم بتحليله وإرسال الشارت والمستويات فوراً!"
         )
         bot.reply_to(message, chat_reply, parse_mode="Markdown", reply_markup=get_main_keyboard())
 
@@ -382,5 +384,5 @@ if __name__ == "__main__":
     flask_thread.daemon = True
     flask_thread.start()
     
-    print("Institutional AI Chatbot & Trading Assistant is running...")
+    print("Institutional Context-Aware Bot is running...")
     bot.infinity_polling()
