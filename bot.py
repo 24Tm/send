@@ -8,7 +8,7 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from flask import Flask
 
-# إعداد الـ Flask للحفاظ على بقاء البوت مستيقظاً على Render
+# إعداد خادم الويب الخفيف جداً للاستجابة لموقع المراقبة فقط
 app = Flask(__name__)
 
 @app.route('/')
@@ -16,11 +16,11 @@ def home():
     return "Bot is active and running!", 200
 
 def run_flask():
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port)
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host="0.0.0.0", port=port, debug=False, use_reloader=False)
 
 # إعداد توكن البوت
-TOKEN = "7963428987:AAEI_Z5bE6ZJmY2H0H7iC2l5Y9v2w3x4y5z" # استبدل التوكن إذا لزم الأمر، أو دعه كما هو إذا كان صحيحاً
+TOKEN = "7963428987:AAEI_Z5bE6ZJmY2H0H7iC2l5Y9v2w3x4y5z"
 bot = telebot.TeleBot(TOKEN)
 
 # قائمة الأسهم المفضلة لفحصها عند طلب "هدف"
@@ -67,7 +67,6 @@ def get_stock_data(symbol):
 def generate_chart(df, symbol):
     fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(10, 10), sharex=True, gridspec_kw={'height_ratios': [3, 1, 1]})
     
-    # الرسم الأول: الشموع والمؤشرات
     ax1.plot(df.index, df['Close'], label='Close', color='blue', alpha=0.5)
     ax1.plot(df.index, df['EMA50'], label='EMA 50', color='orange')
     ax1.plot(df.index, df['BB_UP'], label='BB Upper', color='gray', linestyle='--')
@@ -77,7 +76,6 @@ def generate_chart(df, symbol):
     ax1.legend(loc='upper left')
     ax1.grid(True, linestyle=':', alpha=0.6)
     
-    # الرسم الثاني: مؤشر RSI
     ax2.plot(df.index, df['RSI'], label='RSI (14)', color='purple')
     ax2.axhline(70, color='red', linestyle='--', alpha=0.5)
     ax2.axhline(30, color='green', linestyle='--', alpha=0.5)
@@ -85,7 +83,6 @@ def generate_chart(df, symbol):
     ax2.legend(loc='upper left')
     ax2.grid(True, linestyle=':', alpha=0.6)
     
-    # الرسم الثالث: مؤشر MACD
     ax3.plot(df.index, df['MACD'], label='MACD', color='blue')
     ax3.plot(df.index, df['Signal'], label='Signal', color='red')
     ax3.bar(df.index, df['Hist'], label='Histogram', color='gray', alpha=0.5)
@@ -114,7 +111,6 @@ def scan_targets(message):
             last_close = df['Close'].iloc[-1]
             ema50 = df['EMA50'].iloc[-1]
             
-            # شرط الفرصة: قريب من المتوسط أو RSI ممتاز
             if last_rsi < 45 or last_close > ema50:
                 found = True
                 change = last_close - df['Close'].iloc[-2]
@@ -130,7 +126,7 @@ def scan_targets(message):
                     f"🏛 **التقرير المؤسسي وفرصة الانطلاق:**\n\n"
                     f"📊 **Tadawul:** {symbol.replace('.SR', '')}\n\n"
                     f"• السعر الحالي: **{round(last_close, 2)} ريال**\n"
-                    f"• التغير: **{'+' if change >= ''}{round(change, 2)} ({round(change_pct, 2)}%)**\n\n"
+                    f"• التغير: **{'+' if change >= 0 else ''}{round(change, 2)} ({round(change_pct, 2)}%)**\n\n"
                     f"🎯 **مستويات التداول الرئيسية:**\n"
                     f"• 🟢 منطقة الشراء: **{buy_zone_low} - {buy_zone_high}**\n"
                     f"• 🎯 الهدف الأول: **{target1}** | الهدف الثاني: **{target2}**\n"
@@ -142,7 +138,7 @@ def scan_targets(message):
                 chart_path = generate_chart(df, symbol)
                 with open(chart_path, 'rb') as photo:
                     bot.send_photo(message.chat.id, photo, caption=response, parse_mode="Markdown")
-                break # نرسل أول فرصة قوية مطابقة للمعيار كبداية
+                break
                 
     if not found:
         bot.reply_to(message, "لم يتم العثور على فرص مطابقة للمعايير بدقة في القائمة حالياً.")
@@ -152,7 +148,7 @@ def handle_stock_query(message):
     text = message.text.strip().upper()
     symbol = text + ".SR" if not text.endswith(".SR") else text
     
-    bot.send_reply = bot.reply_to(message, f"⏳ جاري جلب البيانات والتحليل الفني للسهم {symbol}...")
+    bot.reply_to(message, f"⏳ جاري جلب البيانات والتحليل الفني للسهم {symbol}...")
     df = get_stock_data(symbol)
     
     if df is None or df.empty:
@@ -189,11 +185,10 @@ def handle_stock_query(message):
         bot.send_photo(message.chat.id, photo, caption=response, parse_mode="Markdown")
 
 if __name__ == "__main__":
-    # تشغيل خادم الويب Flask في مسار منفصل لتلبية متطلبات الاستضافة
-    t = threading.Thread(target=run_flask)
-    t.daemon = True
-    t.start()
+    # تشغيل خادم الويب Flask في الخلفية لضمان بقاء السيرفر نشطاً
+    flask_thread = threading.Thread(target=run_flask)
+    flask_thread.daemon = True
+    flask_thread.start()
     
-    # تشغيل البوت
-    print("Bot is starting...")
+    print("Bot and Flask server are starting...")
     bot.infinity_polling()
