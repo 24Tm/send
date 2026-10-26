@@ -21,7 +21,7 @@ def run_flask():
     app.run(host="0.0.0.0", port=port, debug=False, use_reloader=False)
 
 # ==================== إعدادات بوت تيليقرام ====================
-TOKEN = "7963428987:AAEI_Z5bE6ZJmY2H0H7iC2l5Y9v2w3x4y5z"
+TOKEN = "8961540572:AAGLzgU3PwqXopo_BGyai7t4PzJf1cB-eGs"
 bot = telebot.TeleBot(TOKEN)
 
 WATCHLIST = [
@@ -103,7 +103,6 @@ def get_main_keyboard():
     markup.add(btn_target, btn_daily, btn_weekly, btn_help)
     return markup
 
-# الأزرار التفاعلية تحت الشارت
 def get_inline_keyboard(symbol):
     markup = types.InlineKeyboardMarkup()
     btn_d = types.InlineKeyboardButton("📊 يومي (Daily)", callback_data=f"tf_1d_{symbol}")
@@ -113,12 +112,25 @@ def get_inline_keyboard(symbol):
 
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
-    welcome_text = "🏛 **أهلاً بك في نظام التحليل المؤسسي للسوق السعودي (Tadawul)**\n\nاختر من الأزرار أدناه أو أرسل رمز السهم مباشرة."
+    welcome_text = (
+        "🏛 **أهلاً بك في نظام التحليل المؤسسي للسوق السعودي (Tadawul)**\n\n"
+        "استخدم الأزرار السريعة أسفل الشاشة أو أرسل رمز السهم مباشرة (مثال: `1820` أو `2222`)."
+    )
     bot.reply_to(message, welcome_text, parse_mode="Markdown", reply_markup=get_main_keyboard())
+
+@bot.message_handler(func=lambda message: message.text and "المساعدة" in message.text)
+def send_help_menu(message):
+    help_text = (
+        "⚙️ **دليل الاستخدام:**\n"
+        "• اضغط على **🎯 هدف** لفحص قائمة الأسهم بحثاً عن فرص الانطلاق.\n"
+        "• اكتب رمز أي سهم (مثل `1120` أو `2222`) للحصول على تقريره الفني مع أزرار التبديل الفوري.\n"
+        "• البوت يعمل على مدار الساعة 24/7."
+    )
+    bot.reply_to(message, help_text, parse_mode="Markdown", reply_markup=get_main_keyboard())
 
 @bot.message_handler(func=lambda message: message.text and "هدف" in message.text)
 def scan_targets(message):
-    bot.reply_to(message, "🔍 جاري فحص السوق والبحث عن أقوى فرص الانطلاق (هدف)...", reply_markup=get_main_keyboard())
+    bot.reply_to(message, "🔍 جاري فحص السوق والبحث عن أقوى فرص الانطلاق (هدف)... يرجى الانتظار قليلاً.", reply_markup=get_main_keyboard())
     found = False
     for symbol in WATCHLIST:
         df = get_stock_data(symbol, interval="1d")
@@ -152,12 +164,46 @@ def scan_targets(message):
                 
                 chart_path = generate_chart(df, symbol, interval="1d")
                 with open(chart_path, 'rb') as photo:
-                    # تفعيل الأزرار تحت الشارت هنا بدقة
                     bot.send_photo(message.chat.id, photo, caption=response, parse_mode="Markdown", reply_markup=get_inline_keyboard(symbol))
                 break
                 
     if not found:
-        bot.reply_to(message, "لم يتم العثور على فرص مطابقة للمعايير حالياً.", reply_markup=get_main_keyboard())
+        bot.reply_to(message, "لم يتم العثور على فرص مطابقة للمعايير بدقة في القائمة حالياً.", reply_markup=get_main_keyboard())
+
+@bot.message_handler(func=lambda message: message.text and ("السوق السعودي اليومي" in message.text or "التحليل الأسبوعي" in message.text))
+def handle_quick_menus(message):
+    if "اليومي" in message.text:
+        symbol = "2222.SR"
+    else:
+        symbol = "1120.SR"
+    
+    interval = "1wk" if "الأسبوعي" in message.text else "1d"
+    tf_name = "أسبوعي طويل الأجل" if interval == "1wk" else "يومي"
+    
+    bot.reply_to(message, f"⏳ جاري جلب التحليل الفني بفاصل ({tf_name}) للسهم الافتراضي {symbol.replace('.SR', '')}...")
+    df = get_stock_data(symbol, interval=interval)
+    
+    if df is None or df.empty:
+        bot.reply_to(message, "❌ تعذر جلب البيانات حالياً.", reply_markup=get_main_keyboard())
+        return
+        
+    last_close = df['Close'].iloc[-1]
+    prev_close = df['Close'].iloc[-2]
+    change = last_close - prev_close
+    change_pct = (change / prev_close) * 100
+    last_rsi = df['RSI'].iloc[-1]
+    
+    response = (
+        f"🏛 **تقرير التحليل المؤسسي ({tf_name}):**\n\n"
+        f"📊 **Tadawul:** {symbol.replace('.SR', '')}\n\n"
+        f"• السعر الحالي: **{round(last_close, 2)} ريال**\n"
+        f"• التغير: **{'+' if change >= 0 else ''}{round(change, 2)} ({round(change_pct, 2)}%)**\n\n"
+        f"📉 **المؤشرات الفنية:** RSI: {round(last_rsi, 1)}"
+    )
+    
+    chart_path = generate_chart(df, symbol, interval=interval)
+    with open(chart_path, 'rb') as photo:
+        bot.send_photo(message.chat.id, photo, caption=response, parse_mode="Markdown", reply_markup=get_inline_keyboard(symbol))
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("tf_"))
 def handle_inline_timeframe(call):
@@ -200,7 +246,7 @@ def handle_stock_query(message):
     df = get_stock_data(symbol, interval="1d")
     
     if df is None or df.empty:
-        bot.reply_to(message, "❌ لم يتم العثور على بيانات لهذا السهم. تأكد من صحة رمز السهم.", reply_markup=get_main_keyboard())
+        bot.reply_to(message, "❌ لم يتم العثور على بيانات لهذا السهم. تأكد من صحة رمز السهم (مثال: 1820).", reply_markup=get_main_keyboard())
         return
         
     last_close = df['Close'].iloc[-1]
