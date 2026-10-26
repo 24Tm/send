@@ -1,6 +1,5 @@
-python-telegram-bot
-yfinance
+pyTelegramBotAPI
+Flask
 pandas
+yfinance
 matplotlib
-pillow
-flask
