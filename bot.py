@@ -16,7 +16,7 @@ app = Flask(__name__)
 
 @app.route('/')
 def home():
-    return "Institutional Bot with Detailed User Tracking is active and running 24/7!", 200
+    return "Institutional Elite Sniper & Whale Detector Bot is active and running 24/7!", 200
 
 def run_flask():
     port = int(os.environ.get("PORT", 10000))
@@ -26,19 +26,21 @@ def run_flask():
 TOKEN = "8961540572:AAGLzgU3PwqXopo_BGyai7t4PzJf1cB-eGs"
 bot = telebot.TeleBot(TOKEN)
 
+# ⚠️ ضع هنا معرف التيليقرام الخاص بك (Admin ID) لتتمكن من استخدام أوامر الأدمن مثل الإذاعة
+ADMIN_ID = 000000000  # استبدل الأصفار بمعرفك الرقمي إن أردت
+
 WATCHLIST = [
     "1120.SR", "1180.SR", "2222.SR", "1211.SR", "2010.SR", 
     "1301.SR", "4200.SR", "7010.SR", "1820.SR", "4300.SR"
 ]
 
-# ملف سري لتسجيل تفاصيل المستخدمين بدقة
-USERS_FILE = "detailed_users_stats.json"
+USERS_FILE = "elite_users_data.json"
 
 def load_users():
     if os.path.exists(USERS_FILE):
         try:
             with open(USERS_FILE, "r", encoding="utf-8") as f:
-                return json.load(f) # سيكون عبارة عن قاموس {user_id: {"name": ..., "username": ...}}
+                return json.load(f)
         except:
             return {}
     return {}
@@ -49,12 +51,22 @@ def save_user(message):
     first_name = message.chat.first_name or "مستخدم"
     username = f"@{message.chat.username}" if message.chat.username else "بدون معرف"
     
+    text = message.text if message.text else ""
+    referred_by = None
+    if text.startswith("/start REF_"):
+        referred_by = text.split("_")[1]
+
     if user_id not in users:
         users[user_id] = {
             "name": first_name,
             "username": username,
-            "id": user_id
+            "id": user_id,
+            "referred_by": referred_by,
+            "referrals_count": 0
         }
+        if referred_by and referred_by in users:
+            users[referred_by]["referrals_count"] += 1
+            
         with open(USERS_FILE, "w", encoding="utf-8") as f:
             json.dump(users, f, ensure_ascii=False, indent=4)
 
@@ -77,6 +89,7 @@ def calculate_indicators(df):
     df['Signal'] = df['MACD'].ewm(span=9, adjust=False).mean()
     df['Hist'] = df['MACD'] - df['Signal']
     df['Vol_SMA20'] = df['Volume'].rolling(window=20).mean()
+    df['High_52w'] = df['High'].rolling(window=252, min_periods=20).max()
 
 def get_stock_data(symbol, interval="1d"):
     try:
@@ -141,8 +154,10 @@ def get_main_keyboard():
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
     markup.add(
         types.KeyboardButton("🎯 فحص الفرص والاهداف"),
+        types.KeyboardButton("🚀 رادار الاختراق والسيولة"),
         types.KeyboardButton("📈 السوق السعودي اليومي"),
         types.KeyboardButton("📅 التحليل الأسبوعي"),
+        types.KeyboardButton("🔗 رابط دعوتي والترشيح"),
         types.KeyboardButton("⚙️ المساعدة والدليل")
     )
     return markup
@@ -159,11 +174,16 @@ def get_inline_keyboard(symbol):
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
     save_user(message)
+    bot_info = bot.get_me()
+    user_id = message.chat.id
+    ref_link = f"https://t.me/{bot_info.username}?start=REF_{user_id}"
+    
     text = (
-        "🏛 **مرحباً بك في مستشارك المالي والمساعد الذكي للسوق السعودي (Tadawul)**\n\n"
-        "• تحليل فني متقدم مع رادار السيولة وحاسبة تعديل التكلفة.\n"
-        "• **ميزة السياق الذكي:** اسأل عن أي سهم في جملتك وسيحلله البوت فوراً!\n\n"
-        "👇 **اختر من الأزرار أدناه، أو أرسل رمز السهم، أو اكتب سؤالك:**"
+        "🏛 **مرحباً بك في المنصة المؤسسية المتقدمة للسوق السعودي (Tadawul)**\n\n"
+        "• تحليل فني ذكي، رادار اختراق القمم، كاشف سيولة صناع السوق (Whales)، وحاسبة تعديل التكلفة.\n"
+        "• **رابط دعوتك الخاص لنشر البوت:**\n"
+        f"`{ref_link}`\n\n"
+        "👇 **اختر من الأزرار أدناه، أو أرسل رمز السهم، أو اسأل سؤالك مباشرة:**"
     )
     bot.reply_to(message, text, parse_mode="Markdown", reply_markup=get_main_keyboard())
 
@@ -173,25 +193,102 @@ def show_user_stats(message):
     users_data = load_users()
     total_users = len(users_data)
     
-    details = f"📊 **قائمة المستخدمين الفريدين ({total_users}):**\n\n"
-    for idx, (uid, info) in enumerate(users_data.items(), 1):
-        details += f"{idx}. **{info['name']}** ({info['username']}) - `ID: {uid}`\n"
-        if idx >= 30: # لعرض أول 30 مستخدم حتى لا تكون الرسالة طويلة جداً
-            details += "\n... (المزيد من المستخدمين)"
-            break
+    details = f"📊 **لوحة الإحصائيات المؤسسية السرية:**\n\n• إجمالي المستخدمين: **{total_users}** مستخدم\n\n**أبرز الداعمين نشاطاً:**\n"
+    sorted_users = sorted(users_data.values(), key=lambda x: x['referrals_count'], reverse=True)
+    for idx, u in enumerate(sorted_users[:5], 1):
+        if u['referrals_count'] > 0:
+            details += f"{idx}. {u['name']} ({u['referrals_count']} دعوات)\n"
             
     bot.reply_to(message, details, parse_mode="Markdown")
+
+@bot.message_handler(commands=['broadcast'])
+def broadcast_message(message):
+    if ADMIN_ID and message.chat.id != ADMIN_ID:
+        return
+    text_parts = message.text.split(maxsplit=1)
+    if len(text_parts) < 2:
+        bot.reply_to(message, "❌ الاستخدام الصحيح:\n`/broadcast رسالتك هنا`", parse_mode="Markdown")
+        return
+    
+    msg_to_send = text_parts[1]
+    users_data = load_users()
+    success = 0
+    for uid in users_data.keys():
+        try:
+            bot.send_message(int(uid), f"📢 **إعلان هام من الإدارة:**\n\n{msg_to_send}", parse_mode="Markdown")
+            success += 1
+        except:
+            pass
+    bot.reply_to(message, f"✅ تم إرسال البث بنجاح إلى `{success}` مستخدم.", parse_mode="Markdown")
+
+@bot.message_handler(func=lambda message: message.text and "رابط دعوتي" in message.text)
+def my_referral_link(message):
+    save_user(message)
+    bot_info = bot.get_me()
+    user_id = message.chat.id
+    users_data = load_users()
+    ref_count = users_data.get(str(user_id), {}).get("referrals_count", 0)
+    ref_link = f"https://t.me/{bot_info.username}?start=REF_{user_id}"
+    
+    resp = (
+        f"🔗 **برنامج الدعوة والنشر الذكي:**\n\n"
+        f"شارك رابطك الخاص مع أصدقائك وفي قروبات التداول:\n"
+        f"`{ref_link}`\n\n"
+        f"👥 عدد الأشخاص الذين انضموا عبر رابطك: **{ref_count}** شخص.\n"
+        f"شكراً لمساهمتك في نشر المنصة!"
+    )
+    bot.reply_to(message, resp, parse_mode="Markdown", reply_markup=get_main_keyboard())
 
 @bot.message_handler(func=lambda message: message.text and "المساعدة" in message.text)
 def send_help(message):
     save_user(message)
     text = (
-        "⚙️ **دليل الاستخدام الشامل:**\n"
-        "1️⃣ **السياق الذكي:** اكتب سؤالك واذكر رقم السهم (مثل: `أين دعم سهم 1820؟`).\n"
+        "⚙️ **دليل الاستخدام الاحترافي:**\n"
+        "1️⃣ **البحث الذكي:** اكتب سؤالك واذكر رقم السهم (مثل: `أين دعم سهم 1820؟`).\n"
         "2️⃣ **البحث المباشر:** أرسل رقم السهم (مثل `2222`).\n"
         "3️⃣ **حاسبة التعديل:** أرسل `تعديل [الرمز] [كميتك] [متوسطك] [الكمية الجديدة]`"
     )
     bot.reply_to(message, text, parse_mode="Markdown", reply_markup=get_main_keyboard())
+
+@bot.message_handler(func=lambda message: message.text and "رادار الاختراق" in message.text)
+def breakout_sniper_scan(message):
+    save_user(message)
+    bot.reply_to(message, "🚀 جاري تشغيل رادار اختراق القمم (Breakout Sniper) وكاشف سيولة صناع السوق (Whales)...", reply_markup=get_main_keyboard())
+    found = False
+    for symbol in WATCHLIST:
+        df = get_stock_data(symbol, interval="1d")
+        if df is not None and not df.empty:
+            last_close = float(df['Close'].iloc[-1])
+            high_52 = float(df['High_52w'].iloc[-1]) if not pd.isna(df['High_52w'].iloc[-1]) else last_close
+            last_vol = float(df['Volume'].iloc[-1])
+            vol_sma = float(df['Vol_SMA20'].iloc[-1]) if not pd.isna(df['Vol_SMA20'].iloc[-1]) else last_vol
+            
+            # شرط الاختراق أو التدفق الهائل للسيولة (صناع السوق)
+            if last_close >= (high_52 * 0.98) or last_vol > (vol_sma * 1.6):
+                found = True
+                prev_close = float(df['Close'].iloc[-2])
+                change = last_close - prev_close
+                change_pct = (change / prev_close) * 100
+                vol_ratio = round(last_vol / vol_sma, 2) if vol_sma > 0 else 1.0
+                
+                sniper_alert = (
+                    f"🚀 **رادار اختراق المقاومات والسيولة الكبرى (Sniper & Whales):**\n\n"
+                    f"📊 **سهم تداول:** `{symbol.replace('.SR', '')}`\n\n"
+                    f"• **السعر الحالي:** {round(last_close, 2)} ريال\n"
+                    f"• **التغير اليومي:** {'+' if change >= 0 else ''}{round(change, 2)} ({round(change_pct, 2)}%)\n"
+                    f"• **أعلى قمة تتبع (52 أسبوع):** {round(high_52, 2)} ريال\n\n"
+                    f"🐋 **كاشف سيولة صناع السوق:**\n"
+                    f"• حجم التداول يشكل **{vol_ratio}x** من المتوسط التاريخي! ⚡️\n"
+                    f"• الحالة: **فرصة اختراق قوية / دخول محافظ كبرى**"
+                )
+                
+                chart_path = generate_professional_chart(df, symbol, interval="1d")
+                with open(chart_path, 'rb') as photo:
+                    bot.send_photo(message.chat.id, photo, caption=sniper_alert, parse_mode="Markdown", reply_markup=get_inline_keyboard(symbol))
+                break
+                
+    if not found:
+        bot.reply_to(message, "لم يتم رصد اختراقات أو تدفقات ضخمة لصناع السوق في قائمة المتابعة حالياً.", reply_markup=get_main_keyboard())
 
 @bot.message_handler(func=lambda message: message.text and "فحص الفرص" in message.text)
 def scan_targets(message):
@@ -203,7 +300,6 @@ def scan_targets(message):
         if df is not None and not df.empty:
             last_rsi = float(df['RSI'].iloc[-1])
             last_close = float(df['Close'].iloc[-1])
-            ema50 = float(df['EMA50'].iloc[-1])
             last_vol = float(df['Volume'].iloc[-1])
             vol_sma = float(df['Vol_SMA20'].iloc[-1]) if not pd.isna(df['Vol_SMA20'].iloc[-1]) else last_vol
             
@@ -389,7 +485,6 @@ def handle_context_aware_message(message):
         change = last_close - prev_close
         change_pct = (change / prev_close) * 100
         last_rsi = float(df['RSI'].iloc[-1])
-        ema50 = float(df['EMA50'].iloc[-1])
         last_vol = float(df['Volume'].iloc[-1])
         vol_sma = float(df['Vol_SMA20'].iloc[-1]) if not pd.isna(df['Vol_SMA20'].iloc[-1]) else last_vol
         
@@ -431,5 +526,5 @@ if __name__ == "__main__":
     flask_thread.daemon = True
     flask_thread.start()
     
-    print("Institutional Context-Aware Bot with Detailed User Tracking is running...")
+    print("Institutional Elite Sniper & Whale Detector Bot is running...")
     bot.infinity_polling()
