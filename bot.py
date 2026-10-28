@@ -16,7 +16,7 @@ app = Flask(__name__)
 
 @app.route('/')
 def home():
-    return "Global Institutional Trader Sniper Bot is active 24/7!", 200
+    return "Multi-Button Institutional Sniper Bot is active 24/7!", 200
 
 def run_flask():
     port = int(os.environ.get("PORT", 10000))
@@ -33,9 +33,9 @@ TADAWUL_WATCHLIST = [
     "1301.SR", "4200.SR", "7010.SR", "1820.SR", "4300.SR"
 ]
 
-US_WATCHLIST = [
-    "AAPL", "TSLA", "NVDA", "MSFT", "AMZN", 
-    "GOOGL", "META", "AMD", "NFLX", "PLTR", "MKDW"
+US_CHEAP_WATCHLIST = [
+    "URG", "IBIO", "TVRD", "TNYA", "CNTB", 
+    "NMRA", "GPUS", "BURU", "ATCH", "MKDW"
 ]
 
 USERS_FILE = "global_elite_users.json"
@@ -126,7 +126,7 @@ def generate_professional_chart(df, symbol, interval="1d"):
     ax1.plot(df.index, df['EMA50'], label='متوسط 50 يوم (EMA)', color='#fbbf24', linewidth=1.2)
     ax1.plot(df.index, df['BB_UP'], label='بولينجر العرضي', color='#94a3b8', linestyle=':', alpha=0.7)
     ax1.plot(df.index, df['BB_DOWN'], color='#94a3b8', linestyle=':', alpha=0.7)
-    ax1.set_title(f"مستويات دخول المضارب | أصل: {clean_symbol} [{tf_name}]", fontsize=13, fontweight='bold', color='white', pad=10)
+    ax1.set_title(f"التحليل الفني المؤسسي | أصل: {clean_symbol} [{tf_name}]", fontsize=13, fontweight='bold', color='white', pad=10)
     ax1.set_ylabel("السعر", color='white', fontsize=10)
     leg1 = ax1.legend(loc='upper left', facecolor='#0f172a', edgecolor='none')
     for text in leg1.get_texts():
@@ -154,13 +154,15 @@ def generate_professional_chart(df, symbol, interval="1d"):
     plt.close()
     return chart_path
 
+# ==================== لوحة المفاتيح الرئيسية المستقلة (زر لكل فكرة) ====================
 def get_main_keyboard():
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
     markup.add(
+        types.KeyboardButton("🇺🇸 رادار ما قبل الانطلاقة (< $1)"),
         types.KeyboardButton("⚡ دخول المضارب (السوق السعودي)"),
-        types.KeyboardButton("🇺🇸 دخول المضارب (الأسهم الأمريكية)"),
         types.KeyboardButton("🚀 رادار الاختراق والسيولة"),
         types.KeyboardButton("📈 السوق السعودي اليومي"),
+        types.KeyboardButton("📅 التحليل الأسبوعي"),
         types.KeyboardButton("🔗 رابط دعوتي والترشيح"),
         types.KeyboardButton("⚙️ المساعدة والدليل")
     )
@@ -183,11 +185,11 @@ def send_welcome(message):
     ref_link = f"https://t.me/{bot_info.username}?start=REF_{user_id}"
     
     text = (
-        "🏛 **مرحباً بك في المنصة المؤسسية العالمية (السوق السعودي + الأسهم الأمريكية)**\n\n"
-        "• مسح شامل للأسواق، كاشف سيولة صناع السوق، ونقاط دخول المضارب اليومي بدقة.\n"
+        "🏛 **مرحباً بك في المنصة المؤسسية العالمية المتقدمة**\n\n"
+        "• تم تخصيص زر مستقل لكل أداة ورادار لتسهيل الوصول الفوري للفرص.\n"
         "• **رابط دعوتك الخاص:**\n"
         f"`{ref_link}`\n\n"
-        "👇 **اختر من الأزرار أدناه، أو أرسل رمز السهم (مثال: `1820` أو `MKDW`):**"
+        "👇 **اختر من الأزرار أدناه أو أرسل رمز/رقم السهم مباشرة:**"
     )
     bot.reply_to(message, text, parse_mode="Markdown", reply_markup=get_main_keyboard())
 
@@ -229,6 +231,56 @@ def my_referral_link(message):
     resp = f"🔗 **برنامج الدعوة:**\n\nرابطك:\n`{ref_link}`\n\n👥 عدد المدعوين: **{ref_count}** شخص."
     bot.reply_to(message, resp, parse_mode="Markdown", reply_markup=get_main_keyboard())
 
+@bot.message_handler(func=lambda message: message.text and "المساعدة" in message.text)
+def send_help(message):
+    save_user(message)
+    text = (
+        "⚙️ **دليل الأزرار والوظائف:**\n"
+        "1️⃣ **رادار ما قبل الانطلاقة:** يفحص الأسهم الأمريكية تحت 1$ في مناطق التجميع الهادئ.\n"
+        "2️⃣ **دخول المضارب (السوق السعودي):** يفحص أسهم تداول للحركة اللحظية.\n"
+        "3️⃣ **رادار الاختراق والسيولة:** يبحث عن قمم 52 أسبوع وتدفق السيولة.\n"
+        "4️⃣ **السوق السعودي اليومي والتحليل الأسبوعي:** لفحص المؤشرات العامة.\n"
+        "5️⃣ **البحث المباشر:** أرسل رمز السهم (مثل `MKDW`) أو رقمه (مثل `1820`) في أي وقت."
+    )
+    bot.reply_to(message, text, parse_mode="Markdown", reply_markup=get_main_keyboard())
+
+# --- 1. زر رادار ما قبل الانطلاقة ---
+@bot.message_handler(func=lambda message: message.text and "رادار ما قبل الانطلاقة" in message.text)
+def trader_pre_breakout_scan(message):
+    save_user(message)
+    bot.reply_to(message, "🔍 جاري فحص الأسهم الأمريكية تحت 1 دولار للبحث عن أسهم مرحلة التجميع الهادئ...", reply_markup=get_main_keyboard())
+    
+    matched = []
+    for symbol in US_CHEAP_WATCHLIST:
+        df = get_stock_data(symbol, interval="1d")
+        if df is not None and not df.empty:
+            last_close = float(df['Close'].iloc[-1])
+            prev_close = float(df['Close'].iloc[-2])
+            change_pct = ((last_close - prev_close) / prev_close) * 100
+            last_rsi = float(df['RSI'].iloc[-1])
+            
+            if last_close < 1.00 and -4.0 <= change_pct <= 4.0 and (35 <= last_rsi <= 55):
+                matched.append((symbol, last_close, change_pct))
+                if len(matched) >= 8:
+                    break
+
+    if not matched:
+        bot.reply_to(message, "❌ لم يتم العثور على أسهم في مرحلة التجميع الهادئ حالياً. السوق هادئ، جرب لاحقاً.", reply_markup=get_main_keyboard())
+        return
+
+    markup = types.InlineKeyboardMarkup(row_width=2)
+    for symbol, price, chg in matched:
+        btn_text = f"🎯 {symbol} (${price:.4f}) [{chg:+.1f}%]"
+        markup.add(types.InlineKeyboardButton(btn_text, callback_data=f"trader_pick_{symbol}"))
+
+    bot.send_message(
+        message.chat.id, 
+        "🟢 **فرص ما قبل الانطلاقة (Accumulation Zone - تحت $1):**\n\n"
+        "هذه الأسهم تتداول بهدوء في مناطق دعم وتجميع. اختر السهم للدخول المبكر:", 
+        reply_markup=markup
+    )
+
+# --- 2. زر دخول المضارب (السوق السعودي) ---
 @bot.message_handler(func=lambda message: message.text and "دخول المضارب (السوق السعودي)" in message.text)
 def trader_tadawul_scan(message):
     save_user(message)
@@ -253,77 +305,12 @@ def trader_tadawul_scan(message):
         markup.add(types.InlineKeyboardButton(f"🇸🇦 سهم {clean_sym} ({price} ر.س)", callback_data=f"trader_pick_{full_sym}"))
     bot.send_message(message.chat.id, "⚡ **فرص المضاربة اللحظية (السوق السعودي):**\nاختر السهم لعرض الشارت ونقاط الدخول:", reply_markup=markup)
 
-@bot.message_handler(func=lambda message: message.text and "دخول المضارب (الأسهم الأمريكية)" in message.text)
-def trader_us_scan(message):
-    save_user(message)
-    bot.reply_to(message, "🇺🇸 جاري مسح الأسهم الأمريكية الكبرى واصطياد فرص المضاربة اللحظية...", reply_markup=get_main_keyboard())
-    matched = []
-    for symbol in US_WATCHLIST:
-        df = get_stock_data(symbol, interval="1d")
-        if df is not None and not df.empty:
-            last_close = float(df['Close'].iloc[-1])
-            last_vol = float(df['Volume'].iloc[-1])
-            vol_sma = float(df['Vol_SMA20'].iloc[-1]) if not pd.isna(df['Vol_SMA20'].iloc[-1]) else last_vol
-            last_rsi = float(df['RSI'].iloc[-1])
-            if last_vol > (vol_sma * 1.2) or (40 <= last_rsi <= 65):
-                matched.append((symbol, symbol, last_close))
-                if len(matched) >= 6: break
-    if not matched:
-        bot.reply_to(message, "❌ لم يتم العثور على فرص مطابقة في الأسهم الأمريكية حالياً.", reply_markup=get_main_keyboard())
-        return
-    markup = types.InlineKeyboardMarkup(row_width=2)
-    for clean_sym, full_sym, price in matched:
-        markup.add(types.InlineKeyboardButton(f"🇺🇸 سهم {clean_sym} (${price})", callback_data=f"trader_pick_{full_sym}"))
-    bot.send_message(message.chat.id, "🇺🇸 **فرص المضاربة اللحظية (الأسهم الأمريكية):**\nاختر السهم لعرض الشارت ونقاط الدخول:", reply_markup=markup)
-
-@bot.callback_query_handler(func=lambda call: call.data.startswith("trader_pick_"))
-def handle_trader_pick(call):
-    save_user(call.message)
-    symbol = call.data.replace("trader_pick_", "")
-    clean_sym = symbol.replace('.SR', '')
-    currency = "$" if not symbol.endswith(".SR") else "ريال"
-    
-    bot.answer_callback_query(call.id, text=f"جاري تحليل نقاط المضارب لسهم {clean_sym}...")
-    df = get_stock_data(symbol, interval="1d")
-    if df is None or df.empty:
-        bot.send_message(call.message.chat.id, f"❌ تعذر جلب بيانات السهم {clean_sym}.")
-        return
-        
-    last_close = float(df['Close'].iloc[-1])
-    prev_close = float(df['Close'].iloc[-2])
-    change = last_close - prev_close
-    change_pct = (change / prev_close) * 100
-    last_rsi = float(df['RSI'].iloc[-1])
-    
-    entry_low = round(last_close * 0.988, 2)
-    entry_high = round(last_close * 1.00, 2)
-    target_1 = round(last_close * 1.035, 2)
-    target_2 = round(last_close * 1.07, 2)
-    stop_loss = round(last_close * 0.955, 2)
-    
-    report = (
-        f"⚡ **تقرير نقاط دخول المضارب اللحظي:**\n\n"
-        f"📊 **اسم السهم / الرمز:** `{clean_sym}`\n\n"
-        f"• **السعر الحالي:** {round(last_close, 2)} {currency}\n"
-        f"• **التغير اليومي:** {'+' if change >= 0 else ''}{round(change, 2)} ({round(change_pct, 2)}%)\n\n"
-        f"🎯 **مستويات المضارب اليومي:**\n"
-        f"• 🟢 **منطقة الدخول الموصى بها:** ({entry_low} - {entry_high}) {currency}\n"
-        f"• 🎯 **هدف المضارب الأول:** {target_1} {currency}\n"
-        f"• 🎯 **هدف المضارب الثاني:** {target_2} {currency}\n"
-        f"• 🛑 **وقف الخسارة اللحظي:** {stop_loss} {currency}\n\n"
-        f"📈 **المؤشرات اللحظية:**\n"
-        f"• مؤشر القوة النسبية RSI: **{round(last_rsi, 1)}**"
-    )
-    
-    chart_path = generate_professional_chart(df, symbol, interval="1d")
-    with open(chart_path, 'rb') as photo:
-        bot.send_photo(call.message.chat.id, photo, caption=report, parse_mode="Markdown", reply_markup=get_inline_keyboard(symbol))
-
-@bot.message_handler(func=lambda message: message.text and "رادار الاختراق" in message.text)
+# --- 3. زر رادار الاختراق والسيولة ---
+@bot.message_handler(func=lambda message: message.text and "رادار الاختراق والسيولة" in message.text)
 def breakout_sniper_scan(message):
     save_user(message)
-    bot.reply_to(message, "🚀 جاري تشغيل رادار اختراق القمم...", reply_markup=get_main_keyboard())
-    combined_list = TADAWUL_WATCHLIST[:3] + US_WATCHLIST[:3]
+    bot.reply_to(message, "🚀 جاري تشغيل رادار اختراق القمم والسيولة المؤسسية...", reply_markup=get_main_keyboard())
+    combined_list = TADAWUL_WATCHLIST[:3] + US_CHEAP_WATCHLIST[:3]
     found = False
     for symbol in combined_list:
         df = get_stock_data(symbol, interval="1d")
@@ -344,9 +331,9 @@ def breakout_sniper_scan(message):
                 alert_text = (
                     f"🚀 **رادار اختراق المقاومات والسيولة:**\n\n"
                     f"📊 **الأصل المالي:** `{clean_sym}`\n\n"
-                    f"• **السعر الحالي:** {round(last_close, 2)} {currency}\n"
-                    f"• **التغير اليومي:** {'+' if change >= 0 else ''}{round(change, 2)} ({round(change_pct, 2)}%)\n"
-                    f"• **قمة 52 أسبوع:** {round(high_52, 2)} {currency}"
+                    f"• **السعر الحالي:** {last_close:.4f} {currency}\n"
+                    f"• **التغير اليومي:** {change_pct:.2f}%\n"
+                    f"• **قمة 52 أسبوع:** {high_52:.4f} {currency}"
                 )
                 chart_path = generate_professional_chart(df, symbol, interval="1d")
                 with open(chart_path, 'rb') as photo:
@@ -355,20 +342,66 @@ def breakout_sniper_scan(message):
     if not found:
         bot.reply_to(message, "لم يتم رصد اختراقات قوية حالياً.", reply_markup=get_main_keyboard())
 
+# --- 4 & 5. أزرار السوق السعودي اليومي والتحليل الأسبوعي ---
 @bot.message_handler(func=lambda message: message.text and ("السوق السعودي اليومي" in message.text or "التحليل الأسبوعي" in message.text))
 def quick_menus(message):
     save_user(message)
     interval = "1wk" if "الأسبوعي" in message.text else "1d"
     symbol = "1120.SR"
+    tf_name = "الإطار الأسبوعي" if interval == "1wk" else "الإطار اليومي"
+    
     df = get_stock_data(symbol, interval=interval)
     if df is None:
         bot.reply_to(message, "❌ تعذر جلب البيانات.", reply_markup=get_main_keyboard())
         return
     last_close = float(df['Close'].iloc[-1])
-    response = f"📊 **مؤشر السوق القياسي:**\n• السعر: {round(last_close, 2)} ريال"
+    response = f"📊 **مؤشر السوق القياسي ({tf_name}):**\n• السعر: {round(last_close, 2)} ريال"
     chart_path = generate_professional_chart(df, symbol, interval=interval)
     with open(chart_path, 'rb') as photo:
         bot.send_photo(message.chat.id, photo, caption=response, parse_mode="Markdown", reply_markup=get_inline_keyboard(symbol))
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith("trader_pick_"))
+def handle_trader_pick(call):
+    save_user(call.message)
+    symbol = call.data.replace("trader_pick_", "")
+    clean_sym = symbol.replace('.SR', '')
+    currency = "$" if not symbol.endswith(".SR") else "ريال"
+    
+    bot.answer_callback_query(call.id, text=f"جاري تحضير نقاط الدخول لـ {clean_sym}...")
+    df = get_stock_data(symbol, interval="1d")
+    if df is None or df.empty:
+        bot.send_message(call.message.chat.id, f"❌ تعذر جلب بيانات السهم {clean_sym}.")
+        return
+        
+    last_close = float(df['Close'].iloc[-1])
+    prev_close = float(df['Close'].iloc[-2])
+    change = last_close - prev_close
+    change_pct = (change / prev_close) * 100
+    last_rsi = float(df['RSI'].iloc[-1])
+    
+    entry_low = round(last_close * 0.990, 4) if last_close < 1 else round(last_close * 0.985, 2)
+    entry_high = round(last_close * 1.002, 4) if last_close < 1 else round(last_close * 1.00, 2)
+    target_1 = round(last_close * 1.06, 4) if last_close < 1 else round(last_close * 1.05, 2)
+    target_2 = round(last_close * 1.15, 4) if last_close < 1 else round(last_close * 1.10, 2)
+    stop_loss = round(last_close * 0.94, 4) if last_close < 1 else round(last_close * 0.945, 2)
+    
+    report = (
+        f"🟢 **تقرير الدخول المبكر والتحليل اللحظي:**\n\n"
+        f"📊 **الرمز / الشركة:** `{clean_sym}`\n\n"
+        f"• **السعر الحالي:** {last_close:.4f} {currency}\n"
+        f"• **التغير اليومي:** {'+' if change >= 0 else ''}{change:.4f} ({change_pct:.2f}%)\n\n"
+        f"🎯 **مستويات الدعم والأهداف:**\n"
+        f"• 🟢 **منطقة الدخول الموصى بها:** ({entry_low} - {entry_high}) {currency}\n"
+        f"• 🎯 **الهدف الأول:** {target_1} {currency}\n"
+        f"• 🎯 **الهدف الثاني:** {target_2} {currency}\n"
+        f"• 🛑 **وقف الخسارة الصارم:** {stop_loss} {currency}\n\n"
+        f"📈 **المؤشرات:**\n"
+        f"• مؤشر القوة النسبية RSI: **{round(last_rsi, 1)}**"
+    )
+    
+    chart_path = generate_professional_chart(df, symbol, interval="1d")
+    with open(chart_path, 'rb') as photo:
+        bot.send_photo(call.message.chat.id, photo, caption=report, parse_mode="Markdown", reply_markup=get_inline_keyboard(symbol))
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("tf_") or call.data.startswith("dca_"))
 def handle_inline_callbacks(call):
@@ -379,7 +412,7 @@ def handle_inline_callbacks(call):
         bot.answer_callback_query(call.id, text="تم تحديث الإطار الزمني...")
         df = get_stock_data(symbol, interval=interval)
         last_close = float(df['Close'].iloc[-1])
-        response = f"📊 **تحديث الشارت:**\n• السعر: {round(last_close, 2)}"
+        response = f"📊 **تحديث الشارت:**\n• السعر: {last_close:.4f}"
         chart_path = generate_professional_chart(df, symbol, interval=interval)
         with open(chart_path, 'rb') as photo:
             bot.send_photo(call.message.chat.id, photo, caption=response, parse_mode="Markdown", reply_markup=get_inline_keyboard(symbol))
@@ -401,25 +434,24 @@ def calculate_dca_result(message):
         df = yf.Ticker(symbol).history(period="1d")
         market_price = float(df['Close'].iloc[-1])
         new_avg = ((curr_shares * curr_avg) + (new_shares * market_price)) / (curr_shares + new_shares)
-        bot.reply_to(message, f"🧮 متوسطك الجديد للأصل `{sym}` هو: **{new_avg:.2f}**", parse_mode="Markdown", reply_markup=get_main_keyboard())
+        bot.reply_to(message, f"🧮 متوسطك الجديد للأصل `{sym}` هو: **{new_avg:.4f}**", parse_mode="Markdown", reply_markup=get_main_keyboard())
     except:
         bot.reply_to(message, "❌ خطأ في الصيغة. استخدم: `تعديل [الرمز] [الكمية] [المتوسط] [الكمية الجديدة]`", parse_mode="Markdown")
 
-# --- السياق الذكي الشامل (يقبل أي اختصار إنجليزي أو رقم سعودي فوراً) ---
+# --- السياق الذكي الشامل (للتعرف على أي سهم عند كتابته مباشرة) ---
 @bot.message_handler(func=lambda message: True)
 def handle_context_aware_message(message):
     save_user(message)
     text = message.text.strip()
     
     numbers_found = re.findall(r'\b\d{3,5}\b', text)
-    # التقاط أي اختصار إنجليزي بحروف صحيحة (من 1 إلى 5 أحرف) كرمز سهم أمريكي
-    english_tickers = re.findall(r'\b[A-Za-z]{1,5}\b', text)
+    words = text.split()
+    english_tickers = [w.upper() for w in words if w.isalpha() and len(w) <= 5 and all(ord(c) < 128 for c in w)]
     
     target_symbol = None
     if numbers_found:
         target_symbol = numbers_found[0] + ".SR"
     elif english_tickers:
-        # استبعاد الكلمات العامة في الجملة إن وجدت، واختصار الرمز المكتوب
         target_symbol = english_tickers[0].upper()
     elif text.isdigit():
         target_symbol = text + ".SR"
@@ -432,7 +464,7 @@ def handle_context_aware_message(message):
         df = get_stock_data(target_symbol, interval="1d")
         
         if df is None or df.empty:
-            bot.reply_to(message, f"❌ لم يتم العثور على بيانات للرمز `{clean_target}`. تأكد من صحة الرمز في السوق.", reply_markup=get_main_keyboard())
+            bot.reply_to(message, f"❌ لم يتم العثور على بيانات للرمز `{clean_target}`. تأكد من صحة الرمز.", reply_markup=get_main_keyboard())
             return
             
         last_close = float(df['Close'].iloc[-1])
@@ -441,16 +473,16 @@ def handle_context_aware_message(message):
         change_pct = (change / prev_close) * 100
         last_rsi = float(df['RSI'].iloc[-1])
         
-        buy_low = round(last_close * 0.985, 2)
-        buy_high = round(last_close * 1.00, 2)
-        t1 = round(last_close * 1.05, 2)
-        t2 = round(last_close * 1.10, 2)
-        stop = round(last_close * 0.945, 2)
+        buy_low = round(last_close * 0.990, 4) if last_close < 1 else round(last_close * 0.985, 2)
+        buy_high = round(last_close * 1.002, 4) if last_close < 1 else round(last_close * 1.00, 2)
+        t1 = round(last_close * 1.06, 4) if last_close < 1 else round(last_close * 1.05, 2)
+        t2 = round(last_close * 1.15, 4) if last_close < 1 else round(last_close * 1.10, 2)
+        stop = round(last_close * 0.94, 4) if last_close < 1 else round(last_close * 0.945, 2)
         
         response = (
             f"🏛 **تحليل الرمز (`{clean_target}`):**\n\n"
-            f"• **السعر الحالي:** {round(last_close, 2)} {currency}\n"
-            f"• **التغير:** {'+' if change >= 0 else ''}{round(change, 2)} ({round(change_pct, 2)}%)\n\n"
+            f"• **السعر الحالي:** {last_close:.4f} {currency}\n"
+            f"• **التغير:** {'+' if change >= 0 else ''}{change:.4f} ({change_pct:.2f}%)\n\n"
             f"🎯 **مستويات الدعم والهدف:**\n"
             f"• 🟢 **منطقة الشراء المناسبة:** ({buy_low} - {buy_high}) {currency}\n"
             f"• 🎯 **الهدف الأول:** {t1} {currency} | **الهدف الثاني:** {t2} {currency}\n"
@@ -463,11 +495,11 @@ def handle_context_aware_message(message):
         with open(chart_path, 'rb') as photo:
             bot.send_photo(message.chat.id, photo, caption=response, parse_mode="Markdown", reply_markup=get_inline_keyboard(target_symbol))
     else:
-        bot.reply_to(message, f"🤖 أهلاً بك! يمكنك إرسال أي اختصار سهم أمريكي (مثل `MKDW` أو `AAPL`) أو رقم سهم سعودي مباشرة.", reply_markup=get_main_keyboard())
+        bot.reply_to(message, f"🤖 أهلاً بك! يمكنك استخدام الأزرار في الأسفل أو إرسال رمز/رقم السهم مباشرة.", reply_markup=get_main_keyboard())
 
 if __name__ == "__main__":
     flask_thread = threading.Thread(target=run_flask)
     flask_thread.daemon = True
     flask_thread.start()
-    print("Global Institutional Trader Sniper Bot is running...")
+    print("Multi-Button Institutional Sniper Bot is running...")
     bot.infinity_polling()
