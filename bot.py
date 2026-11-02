@@ -87,6 +87,11 @@ def calculate_indicators(df):
     rs = gain / loss
     df['RSI'] = 100 - (100 / (1 + rs))
     
+    # حساب الاستوكاستيك (Stochastic Oscillator %K)
+    low_14 = df['Low'].rolling(window=14).min()
+    high_14 = df['High'].rolling(window=14).max()
+    df['Stoch_K'] = 100 * ((df['Close'] - low_14) / (high_14 - low_14))
+    
     exp1 = df['Close'].ewm(span=12, adjust=False).mean()
     exp2 = df['Close'].ewm(span=26, adjust=False).mean()
     df['MACD'] = exp1 - exp2
@@ -154,12 +159,13 @@ def generate_professional_chart(df, symbol, interval="1d"):
     plt.close()
     return chart_path
 
-# ==================== لوحة المفاتيح الرئيسية المستقلة (زر لكل فكرة) ====================
+# ==================== لوحة المفاتيح الرئيسية المستقلة ====================
 def get_main_keyboard():
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
     markup.add(
         types.KeyboardButton("🇺🇸 رادار ما قبل الانطلاقة (< $1)"),
         types.KeyboardButton("⚡ دخول المضارب (السوق السعودي)"),
+        types.KeyboardButton("📉 رادار التشبع البيعي (استوكاستيك < 20)"),
         types.KeyboardButton("🚀 رادار الاختراق والسيولة"),
         types.KeyboardButton("📈 السوق السعودي اليومي"),
         types.KeyboardButton("📅 التحليل الأسبوعي"),
@@ -238,9 +244,10 @@ def send_help(message):
         "⚙️ **دليل الأزرار والوظائف:**\n"
         "1️⃣ **رادار ما قبل الانطلاقة:** يفحص الأسهم الأمريكية تحت 1$ في مناطق التجميع الهادئ.\n"
         "2️⃣ **دخول المضارب (السوق السعودي):** يفحص أسهم تداول للحركة اللحظية.\n"
-        "3️⃣ **رادار الاختراق والسيولة:** يبحث عن قمم 52 أسبوع وتدفق السيولة.\n"
-        "4️⃣ **السوق السعودي اليومي والتحليل الأسبوعي:** لفحص المؤشرات العامة.\n"
-        "5️⃣ **البحث المباشر:** أرسل رمز السهم (مثل `MKDW`) أو رقمه (مثل `1820`) في أي وقت."
+        "3️⃣ **رادار التشبع البيعي:** يفحص الأسهم التي وصلت قيم الاستوكاستيك فيها تحت 20 (مناطق الارتداد المحتملة).\n"
+        "4️⃣ **رادار الاختراق والسيولة:** يبحث عن قمم 52 أسبوع وتدفق السيولة.\n"
+        "5️⃣ **السوق السعودي اليومي والتحليل الأسبوعي:** لفحص المؤشرات العامة.\n"
+        "6️⃣ **البحث المباشر:** أرسل رمز السهم (مثل `MKDW`) أو رقمه (مثل `1820`) في أي وقت."
     )
     bot.reply_to(message, text, parse_mode="Markdown", reply_markup=get_main_keyboard())
 
@@ -305,7 +312,44 @@ def trader_tadawul_scan(message):
         markup.add(types.InlineKeyboardButton(f"🇸🇦 سهم {clean_sym} ({price} ر.س)", callback_data=f"trader_pick_{full_sym}"))
     bot.send_message(message.chat.id, "⚡ **فرص المضاربة اللحظية (السوق السعودي):**\nاختر السهم لعرض الشارت ونقاط الدخول:", reply_markup=markup)
 
-# --- 3. زر رادار الاختراق والسيولة ---
+# --- 3. زر رادار التشبع البيعي (استوكاستيك < 20) ---
+@bot.message_handler(func=lambda message: message.text and "رادار التشبع البيعي" in message.text)
+def stochastic_oversold_scan(message):
+    save_user(message)
+    bot.reply_to(message, "📉 جاري فحص قوائم المراقبة للبحث عن الأسهم التي تعاني من ضغط بيعي وتتداول تحت 20 في الاستوكاستيك...", reply_markup=get_main_keyboard())
+    
+    all_watchlist = TADAWUL_WATCHLIST + US_CHEAP_WATCHLIST
+    matched = []
+    
+    for symbol in all_watchlist:
+        df = get_stock_data(symbol, interval="1d")
+        if df is not None and not df.empty and 'Stoch_K' in df.columns:
+            last_close = float(df['Close'].iloc[-1])
+            stoch_val = float(df['Stoch_K'].iloc[-1])
+            
+            if not pd.isna(stoch_val) and stoch_val < 20:
+                clean_sym = symbol.replace('.SR', '')
+                matched.append((clean_sym, symbol, last_close, stoch_val))
+                if len(matched) >= 8:
+                    break
+
+    if not matched:
+        bot.reply_to(message, "❌ لم يتم العثور على أسهم تتداول تحت 20 في مؤشر الاستوكاستيك حالياً.", reply_markup=get_main_keyboard())
+        return
+
+    markup = types.InlineKeyboardMarkup(row_width=2)
+    for clean_sym, full_sym, price, stoch in matched:
+        btn_text = f"🎯 {clean_sym} ({price}) [Stoch: {stoch:.1f}]"
+        markup.add(types.InlineKeyboardButton(btn_text, callback_data=f"trader_pick_{full_sym}"))
+
+    bot.send_message(
+        message.chat.id, 
+        "📉 **أسهم مناطق التشبع البيعي (Stochastic < 20):**\n\n"
+        "هذه الأسهم تتعرض لضغط بيعي قد يقترب من مناطق ارتداد محتملة. اختر السهم لعرض الشارت:", 
+        reply_markup=markup
+    )
+
+# --- 4. زر رادار الاختراق والسيولة ---
 @bot.message_handler(func=lambda message: message.text and "رادار الاختراق والسيولة" in message.text)
 def breakout_sniper_scan(message):
     save_user(message)
@@ -342,7 +386,7 @@ def breakout_sniper_scan(message):
     if not found:
         bot.reply_to(message, "لم يتم رصد اختراقات قوية حالياً.", reply_markup=get_main_keyboard())
 
-# --- 4 & 5. أزرار السوق السعودي اليومي والتحليل الأسبوعي ---
+# --- أزرار السوق السعودي اليومي والتحليل الأسبوعي ---
 @bot.message_handler(func=lambda message: message.text and ("السوق السعودي اليومي" in message.text or "التحليل الأسبوعي" in message.text))
 def quick_menus(message):
     save_user(message)
@@ -378,6 +422,7 @@ def handle_trader_pick(call):
     change = last_close - prev_close
     change_pct = (change / prev_close) * 100
     last_rsi = float(df['RSI'].iloc[-1])
+    last_stoch = float(df['Stoch_K'].iloc[-1]) if 'Stoch_K' in df.columns else 0.0
     
     entry_low = round(last_close * 0.990, 4) if last_close < 1 else round(last_close * 0.985, 2)
     entry_high = round(last_close * 1.002, 4) if last_close < 1 else round(last_close * 1.00, 2)
@@ -396,7 +441,8 @@ def handle_trader_pick(call):
         f"• 🎯 **الهدف الثاني:** {target_2} {currency}\n"
         f"• 🛑 **وقف الخسارة الصارم:** {stop_loss} {currency}\n\n"
         f"📈 **المؤشرات:**\n"
-        f"• مؤشر القوة النسبية RSI: **{round(last_rsi, 1)}**"
+        f"• مؤشر القوة النسبية RSI: **{round(last_rsi, 1)}**\n"
+        f"• مؤشر الاستوكاستيك Stoch: **{round(last_stoch, 1)}**"
     )
     
     chart_path = generate_professional_chart(df, symbol, interval="1d")
@@ -438,7 +484,7 @@ def calculate_dca_result(message):
     except:
         bot.reply_to(message, "❌ خطأ في الصيغة. استخدم: `تعديل [الرمز] [الكمية] [المتوسط] [الكمية الجديدة]`", parse_mode="Markdown")
 
-# --- السياق الذكي الشامل (للتعرف على أي سهم عند كتابته مباشرة) ---
+# --- السياق الذكي الشامل للبحث المباشر ---
 @bot.message_handler(func=lambda message: True)
 def handle_context_aware_message(message):
     save_user(message)
@@ -472,6 +518,7 @@ def handle_context_aware_message(message):
         change = last_close - prev_close
         change_pct = (change / prev_close) * 100
         last_rsi = float(df['RSI'].iloc[-1])
+        last_stoch = float(df['Stoch_K'].iloc[-1]) if 'Stoch_K' in df.columns else 0.0
         
         buy_low = round(last_close * 0.990, 4) if last_close < 1 else round(last_close * 0.985, 2)
         buy_high = round(last_close * 1.002, 4) if last_close < 1 else round(last_close * 1.00, 2)
@@ -488,7 +535,8 @@ def handle_context_aware_message(message):
             f"• 🎯 **الهدف الأول:** {t1} {currency} | **الهدف الثاني:** {t2} {currency}\n"
             f"• 🛑 **وقف الخسارة الصارم:** {stop} {currency}\n\n"
             f"📉 **المؤشرات:**\n"
-            f"• مؤشر RSI (14): **{round(last_rsi, 1)}**"
+            f"• مؤشر RSI (14): **{round(last_rsi, 1)}**\n"
+            f"• مؤشر الاستوكاستيك Stoch: **{round(last_stoch, 1)}**"
         )
         
         chart_path = generate_professional_chart(df, target_symbol, interval="1d")
