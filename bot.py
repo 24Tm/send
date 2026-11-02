@@ -28,9 +28,14 @@ bot = telebot.TeleBot(TOKEN)
 
 ADMIN_ID = 000000000  # استبدل الأصفار بمعرفك الرقمي إن أردت
 
+# قائمة موسعة وشاملة لأبرز أسهم السوق السعودي (تداول)
 TADAWUL_WATCHLIST = [
     "1120.SR", "1180.SR", "2222.SR", "1211.SR", "2010.SR", 
-    "1301.SR", "4200.SR", "7010.SR", "1820.SR", "4300.SR"
+    "1301.SR", "4200.SR", "7010.SR", "1820.SR", "4300.SR",
+    "2380.SR", "4001.SR", "2240.SR", "4140.SR", "1010.SR",
+    "1020.SR", "1150.SR", "2020.SR", "2060.SR", "2280.SR",
+    "2310.SR", "3030.SR", "3050.SR", "4030.SR", "4050.SR",
+    "4190.SR", "5110.SR", "6010.SR", "7020.SR", "8210.SR"
 ]
 
 US_CHEAP_WATCHLIST = [
@@ -166,7 +171,7 @@ def get_main_keyboard():
         types.KeyboardButton("🇺🇸 رادار ما قبل الانطلاقة (< $1)"),
         types.KeyboardButton("⚡ دخول المضارب (السوق السعودي)"),
         types.KeyboardButton("📉 رادار التشبع البيعي (استوكاستيك < 20)"),
-        types.KeyboardButton("🇸🇦 استوكاستيك السعودي (< 20)"),  # <-- الزر الجديد الخاص بالسوق السعودي
+        types.KeyboardButton("🇸🇦 استوكاستيك السعودي (< 20)"),
         types.KeyboardButton("🚀 رادار الاختراق والسيولة"),
         types.KeyboardButton("📈 السوق السعودي اليومي"),
         types.KeyboardButton("📅 التحليل الأسبوعي"),
@@ -246,7 +251,7 @@ def send_help(message):
         "1️⃣ **رادار ما قبل الانطلاقة:** يفحص الأسهم الأمريكية تحت 1$ في مناطق التجميع.\n"
         "2️⃣ **دخول المضارب (السوق السعودي):** يفحص أسهم تداول للحركة اللحظية.\n"
         "3️⃣ **رادار التشبع البيعي:** يفحص جميع الأسهم (سعودي وأمريكي) الاستوكاستيك فيها تحت 20.\n"
-        "4️⃣ **استوكاستيك السعودي (< 20):** مخصص حصرياً لأسهم السوق السعودي للبحث عن فرص الارتداد.\n"
+        "4️⃣ **استوكاستيك السعودي (< 20):** مفحوص على قائمة واسعة وشاملة لأبرز أسهم تداول لاصطياد فرص الارتداد.\n"
         "5️⃣ **رادار الاختراق والسيولة:** يبحث عن قمم 52 أسبوع وتدفق السيولة.\n"
         "6️⃣ **البحث المباشر:** أرسل رمز السهم في أي وقت."
     )
@@ -350,11 +355,11 @@ def stochastic_oversold_scan(message):
         reply_markup=markup
     )
 
-# --- 4. الزر الجديد المخصص حصرياً للأسهم السعودية (استوكاستيك < 20) ---
+# --- 4. الزر المحدث والموسع حصرياً للأسهم السعودية (استوكاستيك < 20) ---
 @bot.message_handler(func=lambda message: message.text and "استوكاستيك السعودي" in message.text)
 def tadawul_stochastic_scan(message):
     save_user(message)
-    bot.reply_to(message, "🇸🇦 جاري مسح أسهم السوق السعودي حصرياً لاكتشاف الأصول القابعة تحت 20 في مؤشر الاستوكاستيك...", reply_markup=get_main_keyboard())
+    bot.reply_to(message, "🇸🇦 جاري مسح القائمة الواسعة لأسهم السوق السعودي لاكتشاف الأصول القابعة تحت 20 في مؤشر الاستوكاستيك...", reply_markup=get_main_keyboard())
     
     matched = []
     for symbol in TADAWUL_WATCHLIST:
@@ -370,7 +375,7 @@ def tadawul_stochastic_scan(message):
                     break
 
     if not matched:
-        bot.reply_to(message, "❌ لا توجد أسهم سعودية في القائمة الحالية تتداول تحت 20 في الاستوكاستيك.", reply_markup=get_main_keyboard())
+        bot.reply_to(message, "❌ لا توجد أسهم تتداول تحت 20 في الاستوكاستيك ضمن القائمة المحدثة حالياً.", reply_markup=get_main_keyboard())
         return
 
     markup = types.InlineKeyboardMarkup(row_width=2)
