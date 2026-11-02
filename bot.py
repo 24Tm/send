@@ -166,6 +166,7 @@ def get_main_keyboard():
         types.KeyboardButton("🇺🇸 رادار ما قبل الانطلاقة (< $1)"),
         types.KeyboardButton("⚡ دخول المضارب (السوق السعودي)"),
         types.KeyboardButton("📉 رادار التشبع البيعي (استوكاستيك < 20)"),
+        types.KeyboardButton("🇸🇦 استوكاستيك السعودي (< 20)"),  # <-- الزر الجديد الخاص بالسوق السعودي
         types.KeyboardButton("🚀 رادار الاختراق والسيولة"),
         types.KeyboardButton("📈 السوق السعودي اليومي"),
         types.KeyboardButton("📅 التحليل الأسبوعي"),
@@ -242,12 +243,12 @@ def send_help(message):
     save_user(message)
     text = (
         "⚙️ **دليل الأزرار والوظائف:**\n"
-        "1️⃣ **رادار ما قبل الانطلاقة:** يفحص الأسهم الأمريكية تحت 1$ في مناطق التجميع الهادئ.\n"
+        "1️⃣ **رادار ما قبل الانطلاقة:** يفحص الأسهم الأمريكية تحت 1$ في مناطق التجميع.\n"
         "2️⃣ **دخول المضارب (السوق السعودي):** يفحص أسهم تداول للحركة اللحظية.\n"
-        "3️⃣ **رادار التشبع البيعي:** يفحص الأسهم التي وصلت قيم الاستوكاستيك فيها تحت 20 (مناطق الارتداد المحتملة).\n"
-        "4️⃣ **رادار الاختراق والسيولة:** يبحث عن قمم 52 أسبوع وتدفق السيولة.\n"
-        "5️⃣ **السوق السعودي اليومي والتحليل الأسبوعي:** لفحص المؤشرات العامة.\n"
-        "6️⃣ **البحث المباشر:** أرسل رمز السهم (مثل `MKDW`) أو رقمه (مثل `1820`) في أي وقت."
+        "3️⃣ **رادار التشبع البيعي:** يفحص جميع الأسهم (سعودي وأمريكي) الاستوكاستيك فيها تحت 20.\n"
+        "4️⃣ **استوكاستيك السعودي (< 20):** مخصص حصرياً لأسهم السوق السعودي للبحث عن فرص الارتداد.\n"
+        "5️⃣ **رادار الاختراق والسيولة:** يبحث عن قمم 52 أسبوع وتدفق السيولة.\n"
+        "6️⃣ **البحث المباشر:** أرسل رمز السهم في أي وقت."
     )
     bot.reply_to(message, text, parse_mode="Markdown", reply_markup=get_main_keyboard())
 
@@ -272,7 +273,7 @@ def trader_pre_breakout_scan(message):
                     break
 
     if not matched:
-        bot.reply_to(message, "❌ لم يتم العثور على أسهم في مرحلة التجميع الهادئ حالياً. السوق هادئ، جرب لاحقاً.", reply_markup=get_main_keyboard())
+        bot.reply_to(message, "❌ لم يتم العثور على أسهم في مرحلة التجميع الهادئ حالياً.", reply_markup=get_main_keyboard())
         return
 
     markup = types.InlineKeyboardMarkup(row_width=2)
@@ -312,7 +313,7 @@ def trader_tadawul_scan(message):
         markup.add(types.InlineKeyboardButton(f"🇸🇦 سهم {clean_sym} ({price} ر.س)", callback_data=f"trader_pick_{full_sym}"))
     bot.send_message(message.chat.id, "⚡ **فرص المضاربة اللحظية (السوق السعودي):**\nاختر السهم لعرض الشارت ونقاط الدخول:", reply_markup=markup)
 
-# --- 3. زر رادار التشبع البيعي (استوكاستيك < 20) ---
+# --- 3. زر رادار التشبع البيعي الشامل (استوكاستيك < 20) ---
 @bot.message_handler(func=lambda message: message.text and "رادار التشبع البيعي" in message.text)
 def stochastic_oversold_scan(message):
     save_user(message)
@@ -344,12 +345,47 @@ def stochastic_oversold_scan(message):
 
     bot.send_message(
         message.chat.id, 
-        "📉 **أسهم مناطق التشبع البيعي (Stochastic < 20):**\n\n"
-        "هذه الأسهم تتعرض لضغط بيعي قد يقترب من مناطق ارتداد محتملة. اختر السهم لعرض الشارت:", 
+        "📉 **أسهم مناطق التشبع البيعي الشامل (Stochastic < 20):**\n\n"
+        "هذه الأسهم تتعرض لضغط بيعي. اختر السهم لعرض الشارت:", 
         reply_markup=markup
     )
 
-# --- 4. زر رادار الاختراق والسيولة ---
+# --- 4. الزر الجديد المخصص حصرياً للأسهم السعودية (استوكاستيك < 20) ---
+@bot.message_handler(func=lambda message: message.text and "استوكاستيك السعودي" in message.text)
+def tadawul_stochastic_scan(message):
+    save_user(message)
+    bot.reply_to(message, "🇸🇦 جاري مسح أسهم السوق السعودي حصرياً لاكتشاف الأصول القابعة تحت 20 في مؤشر الاستوكاستيك...", reply_markup=get_main_keyboard())
+    
+    matched = []
+    for symbol in TADAWUL_WATCHLIST:
+        df = get_stock_data(symbol, interval="1d")
+        if df is not None and not df.empty and 'Stoch_K' in df.columns:
+            last_close = float(df['Close'].iloc[-1])
+            stoch_val = float(df['Stoch_K'].iloc[-1])
+            
+            if not pd.isna(stoch_val) and stoch_val < 20:
+                clean_sym = symbol.replace('.SR', '')
+                matched.append((clean_sym, symbol, last_close, stoch_val))
+                if len(matched) >= 8:
+                    break
+
+    if not matched:
+        bot.reply_to(message, "❌ لا توجد أسهم سعودية في القائمة الحالية تتداول تحت 20 في الاستوكاستيك.", reply_markup=get_main_keyboard())
+        return
+
+    markup = types.InlineKeyboardMarkup(row_width=2)
+    for clean_sym, full_sym, price, stoch in matched:
+        btn_text = f"🇸🇦 {clean_sym} ({price} ر.س) [Stoch: {stoch:.1f}]"
+        markup.add(types.InlineKeyboardButton(btn_text, callback_data=f"trader_pick_{full_sym}"))
+
+    bot.send_message(
+        message.chat.id, 
+        "🇸🇦 **الأسهم السعودية في مناطق التشبع البيعي (Stochastic < 20):**\n\n"
+        "فرص ارتداد محتملة للسوق السعودي. اختر السهم لعرض الشارت ونقاط الدخول:", 
+        reply_markup=markup
+    )
+
+# --- 5. زر رادار الاختراق والسيولة ---
 @bot.message_handler(func=lambda message: message.text and "رادار الاختراق والسيولة" in message.text)
 def breakout_sniper_scan(message):
     save_user(message)
