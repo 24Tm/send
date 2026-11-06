@@ -30,7 +30,7 @@ bot = telebot.TeleBot(TOKEN)
 
 ADMIN_ID = 000000000
 
-# قاموس الأسماء العربية المضمونة لأسهم السوق السعودي
+# قاموس الأسماء العربية والرموز الصحيحة والمحدثة بدقة لأسهم السوق السعودي
 TADAWUL_NAMES = {
     "1120.SR": "الراجحي",
     "1180.SR": "الإنماء",
@@ -45,7 +45,6 @@ TADAWUL_NAMES = {
     "2380.SR": "بوان",
     "4001.SR": "أسواق العثيم",
     "2240.SR": "الزامل للصناعة",
-    "4140.SR": "بابه",
     "1010.SR": "الرياض",
     "1020.SR": "الجزيرة",
     "1150.SR": "الأول",
@@ -55,10 +54,9 @@ TADAWUL_NAMES = {
     "2310.SR": "سبكيم العالمية",
     "3030.SR": "الاسمنت السعودية",
     "3050.SR": "الأسمنت العربية",
-    "4030.SR": "الكهرباء السعودية",
+    "5110.SR": "الكهرباء السعودية",  # تم التصحيح بدقة إلى الرمز الصحيح
     "4050.SR": "الباحة",
     "4190.SR": "جرير",
-    "5110.SR": "كهرباء السعودية",
     "6010.SR": "نقي",
     "7020.SR": "اتحاد عذيب",
     "8210.SR": "ولاء للتأمين"
@@ -234,7 +232,7 @@ def generate_professional_chart(df, symbol, interval="1d", entry_low=None, entry
     plt.close()
     return chart_path
 
-# ==================== لوحة المفاتيح الرئيسية (أزرار بارزة ومفصولة لكل سوق) ====================
+# ==================== لوحة المفاتيح الرئيسية ====================
 def get_main_keyboard():
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=1)
     markup.add(
@@ -270,7 +268,7 @@ def send_welcome(message):
     )
     bot.reply_to(message, text, parse_mode="Markdown", reply_markup=get_main_keyboard())
 
-# --- زر السوق السعودي البارز ---
+# --- رادار السوق السعودي ---
 @bot.message_handler(func=lambda message: message.text and "رادار السوق السعودي" in message.text)
 def tadawul_market_scan(message):
     save_user(message)
@@ -300,7 +298,7 @@ def tadawul_market_scan(message):
 
     bot.send_message(message.chat.id, "🇸🇦 **فرص الشراء الآن في السوق السعودي:**", reply_markup=markup)
 
-# --- زر السوق الأمريكي البارز ---
+# --- رادار السوق الأمريكي ---
 @bot.message_handler(func=lambda message: message.text and "رادار السوق الأمريكي" in message.text)
 def us_market_scan(message):
     save_user(message)
