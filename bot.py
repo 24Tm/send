@@ -18,7 +18,7 @@ app = Flask(__name__)
 
 @app.route('/')
 def home():
-    return "Expanded Sniper Bot is active 24/7!", 200
+    return "Fully Automated Sniper Bot is active 24/7!", 200
 
 def run_flask():
     port = int(os.environ.get("PORT", 10000))
@@ -27,8 +27,6 @@ def run_flask():
 # ==================== إعدادات بوت تيليقرام ====================
 TOKEN = "8961540572:AAGLzgU3PwqXopo_BGyai7t4PzJf1cB-eGs"
 bot = telebot.TeleBot(TOKEN)
-
-ADMIN_ID = 000000000
 
 # قاموس الأسماء العربية والرموز الصحيحة لأسهم السوق السعودي
 TADAWUL_NAMES = {
@@ -64,7 +62,6 @@ TADAWUL_NAMES = {
 
 TADAWUL_WATCHLIST = list(TADAWUL_NAMES.keys())
 
-# قائمة موسعة للأسهم الأمريكية النشطة لاصطياد قيعان حقيقية
 US_EXPANDED_WATCHLIST = [
     "AAPL", "MSFT", "GOOGL", "AMZN", "TSLA", "META", "NVDA", 
     "AMD", "INTC", "PLTR", "NIO", "F", "BAC", "PFE", "UBER",
@@ -151,7 +148,6 @@ def calculate_indicators(df):
         sig_prev = df['Signal'].iloc[i-1]
         sig_curr = df['Signal'].iloc[i]
         
-        # شرط قنص القاع: استوكاستك قادم من تحت 30 مع تقاطع إيجابي + تقاطع الماكد
         stoch_from_oversold = (k_prev <= 30) or (d_prev <= 30)
         stoch_crossover = (k_prev <= d_prev) and (k_curr > d_curr) and stoch_from_oversold
         macd_crossover = (macd_prev <= sig_prev) and (macd_curr > sig_curr)
@@ -260,19 +256,19 @@ def send_welcome(message):
     ref_link = f"https://t.me/{bot_info.username}?start=REF_{user_id}"
     
     text = (
-        "⚡ **منصة قنص القيعان وتحقيق المكاسب**\n\n"
-        "• تم تحديث الأوامر وتثبيت لوحة التحكم.\n"
+        "⚡ **منصة قنص القيعان والعمل الآلي 24/7**\n\n"
+        "• البوت يعمل من تلقاء نفسه ويرسل التنبيهات أوتوماتيكياً.\n"
         "• **رابط دعوتك الخاص:**\n"
         f"`{ref_link}`\n\n"
-        "👇 **اختر الزر المناسب للسوق المطلوب:**"
+        "👇 **اختر الزر المناسب أو استلم التنبيهات تلقائياً:**"
     )
     bot.reply_to(message, text, parse_mode="Markdown", reply_markup=get_main_keyboard())
 
-# --- رادار قنص القاع الأمريكي الجديد ---
+# --- رادار قنص القاع الأمريكي ---
 @bot.message_handler(func=lambda message: message.text and "صفقات قنص القاع الأمريكي" in message.text)
 def us_bottom_sniper_scan(message):
     save_user(message)
-    bot.reply_to(message, "🇺🇸 جاري فحص الأسهم الأمريكية الموسعة لاصطياد أفضل فرص الدخول من القاع المحقق لمكاسب...", reply_markup=get_main_keyboard())
+    bot.reply_to(message, "🇺🇸 جاري فحص الأسهم الأمريكية الموسعة لاصطياد أفضل فرص الدخول من القاع...", reply_markup=get_main_keyboard())
     
     matched = []
     for symbol in US_EXPANDED_WATCHLIST:
@@ -287,7 +283,7 @@ def us_bottom_sniper_scan(message):
                     break
 
     if not matched:
-        bot.reply_to(message, "❌ لم يتم رصد فرص مطابقة حالياً، جرب لاحقاً أو أرسل رمز السهم مباشرة.", reply_markup=get_main_keyboard())
+        bot.reply_to(message, "❌ لم يتم رصد فرص مطابقة حالياً في السوق الأمريكي.", reply_markup=get_main_keyboard())
         return
 
     markup = types.InlineKeyboardMarkup(row_width=1)
@@ -295,7 +291,7 @@ def us_bottom_sniper_scan(message):
         btn_text = f"🇺🇸 {comp_name} ({clean_sym}) [Stoch: {stoch:.1f}] - دخول من القاع 🎯"
         markup.add(types.InlineKeyboardButton(btn_text, callback_data=f"trader_pick_{full_sym}"))
 
-    bot.send_message(message.chat.id, "🇺🇸 **فرص الدخول من القاع المحقق لمكاسب في السوق الأمريكي:**", reply_markup=markup)
+    bot.send_message(message.chat.id, "🇺🇸 **فرص الدخول من القاع في السوق الأمريكي:**", reply_markup=markup)
 
 # --- رادار السوق السعودي ---
 @bot.message_handler(func=lambda message: message.text and "رادار السوق السعودي" in message.text)
@@ -317,7 +313,7 @@ def tadawul_market_scan(message):
                     break
 
     if not matched:
-        bot.reply_to(message, "❌ لا توجد فرص شراء حالياً تطابق الشروط الصارمة.", reply_markup=get_main_keyboard())
+        bot.reply_to(message, "❌ لا توجد فرص شراء حالياً تطابق الشروط.", reply_markup=get_main_keyboard())
         return
 
     markup = types.InlineKeyboardMarkup(row_width=1)
@@ -402,9 +398,8 @@ def send_help(message):
     save_user(message)
     text = (
         "⚙️ **دليل الأزرار والوظائف:**\n"
-        "1️⃣ **رادار السوق السعودي:** للمضاربة وقنص القاع.\n"
-        "2️⃣ **صفقات قنص القاع الأمريكي:** لاصطياد الفرص في الأسهم الأمريكية.\n"
-        "3️⃣ **البحث المباشر:** أرسل رمز أو رقم أي سهم في أي وقت."
+        "• البوت مبرمج للعمل أوتوماتيكياً وإرسال الفرص من تلقاء نفسه.\n"
+        "• يمكنك إرسال رمز أو رقم أي سهم في أي وقت لتحليله فوراً."
     )
     bot.reply_to(message, text, parse_mode="Markdown", reply_markup=get_main_keyboard())
 
@@ -519,9 +514,9 @@ def handle_context_aware_message(message):
         with open(chart_path, 'rb') as photo:
             bot.send_photo(message.chat.id, photo, caption=response, parse_mode="Markdown", reply_markup=get_inline_keyboard(target_symbol))
     else:
-        bot.reply_to(message, f"🤖 أهلاً بك! اضغط على الأزرار البارزة أدناه لاختيار السوق أو الرادار المطلوبة.", reply_markup=get_main_keyboard())
+        bot.reply_to(message, f"🤖 أهلاً بك! يمكنك إرسال رمز أو رقم السهم مباشرة أو استخدام الأزرار أدناه.", reply_markup=get_main_keyboard())
 
-# --- دالة الإرسال التلقائي اليومي ---
+# --- دالة الإرسال التلقائي اليومي (تعمل من تلقاء نفسها) ---
 def job_auto_market_scan():
     users = load_users()
     if not users:
@@ -529,7 +524,7 @@ def job_auto_market_scan():
     
     for user_id in users.keys():
         try:
-            bot.send_message(int(user_id), "🔔 **تنبيه تلقائي (بعد ساعة من الافتتاح):** جاري فحص السوق لاصطياد الفرصة الذهبية...")
+            bot.send_message(int(user_id), "🔔 **تنبيه تلقائي من الرادار الآلي:** جاري فحص السوق لاصطياد الفرصة الذهبية...")
             
             for symbol in TADAWUL_WATCHLIST:
                 df = get_stock_data(symbol, interval="1d")
@@ -546,7 +541,7 @@ def job_auto_market_scan():
                         stop = round(last_close * 0.97, 2)
                         
                         report = (
-                            f"🚨 **فرصة شراء الآن (تنبيه تلقائي):**\n\n"
+                            f"🚨 **فرصة شراء الآن (تنبيه تلقائي آلي):**\n\n"
                             f"📊 **الشركة:** `{comp_name}` (`{clean_sym}`)\n\n"
                             f"• **السعر الحالي:** {last_close:.2f} ريال\n"
                             f"• **نوع الفرصة:** تقاطع استوكاستك من القاع مع الماكد 🎯\n\n"
@@ -578,5 +573,5 @@ if __name__ == "__main__":
     scheduler_thread.daemon = True
     scheduler_thread.start()
     
-    print("Expanded Sniper Bot with US Bottom Scanner is running successfully...")
+    print("Fully Automated Sniper Bot is running successfully...")
     bot.infinity_polling()
