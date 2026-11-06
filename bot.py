@@ -28,14 +28,41 @@ bot = telebot.TeleBot(TOKEN)
 
 ADMIN_ID = 000000000  # استبدل الأصفار بمعرفك الرقمي إن أردت
 
-TADAWUL_WATCHLIST = [
-    "1120.SR", "1180.SR", "2222.SR", "1211.SR", "2010.SR", 
-    "1301.SR", "4200.SR", "7010.SR", "1820.SR", "4300.SR",
-    "2380.SR", "4001.SR", "2240.SR", "4140.SR", "1010.SR",
-    "1020.SR", "1150.SR", "2020.SR", "2060.SR", "2280.SR",
-    "2310.SR", "3030.SR", "3050.SR", "4030.SR", "4050.SR",
-    "4190.SR", "5110.SR", "6010.SR", "7020.SR", "8210.SR"
-]
+# قاموس الأسماء العربية المضمونة لأسهم السوق السعودي لضمان ظهورها فوراً
+TADAWUL_NAMES = {
+    "1120.SR": "الراجحي",
+    "1180.SR": "الإنماء",
+    "2222.SR": "أرامكو السعودية",
+    "1211.SR": "معادن",
+    "2010.SR": "سابك",
+    "1301.SR": "التنمية الغذائية",
+    "4200.SR": "الدريس",
+    "7010.SR": "إس تي سي",
+    "1820.SR": "بان القابضة",
+    "4300.SR": "دار الأركان",
+    "2380.SR": "بوان",
+    "4001.SR": "أسواق العثيم",
+    "2240.SR": "الزامل للصناعة",
+    "4140.SR": "بابه",
+    "1010.SR": "الرياض",
+    "1020.SR": "الجزيرة",
+    "1150.SR": "الأول",
+    "2020.SR": "سابك للمغذيات الزراعية",
+    "2060.SR": "اتحاد اليمامة",
+    "2280.SR": "المراعي",
+    "2310.SR": "سبكيم العالمية",
+    "3030.SR": "الاسمنت السعودية",
+    "3050.SR": "الأسمنت العربية",
+    "4030.SR": "الكهرباء السعودية",
+    "4050.SR": "الباحة",
+    "4190.SR": "جرير",
+    "5110.SR": "كهرباء السعودية",
+    "6010.SR": "نقي",
+    "7020.SR": "اتحاد عذيب",
+    "8210.SR": "ولاء للتأمين"
+}
+
+TADAWUL_WATCHLIST = list(TADAWUL_NAMES.keys())
 
 US_CHEAP_WATCHLIST = [
     "URG", "IBIO", "TVRD", "TNYA", "CNTB", 
@@ -79,6 +106,9 @@ def save_user(message):
             json.dump(users, f, ensure_ascii=False, indent=4)
 
 def get_company_name(symbol):
+    # استخدام القاموس المباشر للأسهم السعودية لضمان الاسم العربي الدقيق
+    if symbol in TADAWUL_NAMES:
+        return TADAWUL_NAMES[symbol]
     try:
         t = yf.Ticker(symbol)
         info = t.info
@@ -137,15 +167,13 @@ def get_stock_data(symbol, interval="1d"):
         print(f"Error fetching {symbol}: {e}")
         return None
 
-# --- دالة توليد الشارت فائق الوضوح (Ultra-Clear High-Resolution Chart) ---
 def generate_professional_chart(df, symbol, interval="1d", entry_low=None, entry_high=None):
-    # زيادة حجم الصورة لضمان الوضوح التام على الهواتف والشاشات الكبيرة
     fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(12, 13), sharex=True, gridspec_kw={'height_ratios': [3.2, 1.2, 1.2]})
     tf_name = "الإطار الأسبوعي (Weekly)" if interval == "1wk" else "الإطار اليومي (Daily)"
     clean_symbol = symbol.replace('.SR', '')
     comp_name = get_company_name(symbol)
     
-    fig.patch.set_facecolor('#0b0f19') # خلفية داكنة احترافية عميقة
+    fig.patch.set_facecolor('#0b0f19')
     for ax in [ax1, ax2, ax3]:
         ax.set_facecolor('#111827')
         ax.tick_params(colors='white', labelsize=11)
@@ -153,13 +181,11 @@ def generate_professional_chart(df, symbol, interval="1d", entry_low=None, entry
         for spine in ax.spines.values():
             spine.set_color('#4b5563')
 
-    # الشارت الرئيسي (السعر والمتوسطات والبولينجر)
     ax1.plot(df.index, df['Close'], label='سعر الإغلاق', color='#38bdf8', linewidth=2.0)
     ax1.plot(df.index, df['EMA50'], label='متوسط 50 (EMA)', color='#fbbf24', linewidth=1.5)
     ax1.plot(df.index, df['BB_UP'], label='بولينجر العلوي', color='#9ca3af', linestyle=':', alpha=0.8)
     ax1.plot(df.index, df['BB_DOWN'], label='بولينجر السفلي', color='#9ca3af', linestyle=':', alpha=0.8)
     
-    # إشارات الشراء المؤكدة (أسهم خضراء واضحة جداً)
     signals = df[df['Verified_Buy'] == True]
     if not signals.empty:
         ax1.scatter(signals.index, signals['Low'] * 0.985, marker='^', color='#22c55e', s=160, zorder=5, label='إشارة شراء مؤكدة 🎯')
@@ -173,7 +199,6 @@ def generate_professional_chart(df, symbol, interval="1d", entry_low=None, entry
     for text in leg1.get_texts():
         text.set_color('white')
 
-    # مؤشر الاستوكاستك الفرعي
     ax2.plot(df.index, df['Stoch_K'], label='%K (5,3,3)', color='#f97316', linewidth=1.5)
     ax2.plot(df.index, df['Stoch_D'], label='%D (3)', color='#38bdf8', linewidth=1.5)
     ax2.axhline(80, color='#ef4444', linestyle='--', alpha=0.8, label='تشبع شرائي (80)')
@@ -183,7 +208,6 @@ def generate_professional_chart(df, symbol, interval="1d", entry_low=None, entry
     for text in leg2.get_texts():
         text.set_color('white')
 
-    # مؤشر MACD الفرعي
     ax3.plot(df.index, df['MACD'], label='MACD', color='#38bdf8', linewidth=1.5)
     ax3.plot(df.index, df['Signal'], label='خط الإشارة', color='#f43f5e', linewidth=1.5)
     ax3.bar(df.index, df['Hist'], label='Histogram', color='#9ca3af', alpha=0.7)
@@ -194,11 +218,10 @@ def generate_professional_chart(df, symbol, interval="1d", entry_low=None, entry
 
     plt.tight_layout()
     chart_path = f"/tmp/{clean_symbol}_{interval}_ultraclear_chart.png"
-    plt.savefig(chart_path, dpi=220, facecolor=fig.get_facecolor(), edgecolor='none') # دقة عالية جداً 220 DPI
+    plt.savefig(chart_path, dpi=220, facecolor=fig.get_facecolor(), edgecolor='none')
     plt.close()
     return chart_path
 
-# ==================== لوحة المفاتيح الرئيسية ====================
 def get_main_keyboard():
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
     markup.add(
@@ -230,20 +253,18 @@ def send_welcome(message):
     ref_link = f"https://t.me/{bot_info.username}?start=REF_{user_id}"
     
     text = (
-        "🏛 **منصة القنص المؤسسي - النسخة المطورة بنصوص وأسماء واضحة وشارت فائق الوضوح**\n\n"
-        "• تظهر الآن أسماء الشركات بجانب الأكواد في كافة النتائج والأزرار.\n"
-        "• الشارت مصمم بدقة عالية جداً (High-Res) لتسهيل اتخاذ قرار الشراء بدقة.\n"
+        "🏛 **منصة القنص المؤسسي - مع الأسماء العربية المباشرة**\n\n"
+        "• تظهر الآن أسماء الشركات باللغة العربية بجانب الأكواد بدلاً من تكرار الرقم.\n"
         "• **رابط دعوتك الخاص:**\n"
         f"`{ref_link}`\n\n"
         "👇 **اختر من الأزرار أدناه للبدء:**"
     )
     bot.reply_to(message, text, parse_mode="Markdown", reply_markup=get_main_keyboard())
 
-# --- رادار الصفقات المؤكدة (السعودي) مع الاسم بجانب الرقم ---
 @bot.message_handler(func=lambda message: message.text and "رادار الصفقات المؤكدة (السعودي)" in message.text)
 def verified_tadawul_scan(message):
     save_user(message)
-    bot.reply_to(message, "🔍 جاري فحص الأسهم السعودية واستخراج الصفقات المؤكدة مع أسمائها...", reply_markup=get_main_keyboard())
+    bot.reply_to(message, "🔍 جاري فحص الأسهم السعودية وإظهار أسمائها العربية المباشرة...", reply_markup=get_main_keyboard())
     
     matched = []
     for symbol in TADAWUL_WATCHLIST:
@@ -268,13 +289,12 @@ def verified_tadawul_scan(message):
         btn_text = f"🇸🇦 {comp_name} ({clean_sym}) [Stoch: {stoch:.1f}]"
         markup.add(types.InlineKeyboardButton(btn_text, callback_data=f"trader_pick_{full_sym}"))
 
-    bot.send_message(message.chat.id, "🟢 **الفرص المؤكدة في السوق السعودي (مع اسم الشركة):**", reply_markup=markup)
+    bot.send_message(message.chat.id, "🟢 **الفرص المؤكدة في السوق السعودي (الاسم العربي + الرمز):**", reply_markup=markup)
 
-# --- رادار الصفقات المؤكدة (السوق الأمريكي) ---
 @bot.message_handler(func=lambda message: message.text and "رادار الصفقات المؤكدة (الأمريكي)" in message.text)
 def verified_us_scan(message):
     save_user(message)
-    bot.reply_to(message, "🇺🇸 جاري فحص الأسهم الأمريكية واستخراج الصفقات المؤكدة...", reply_markup=get_main_keyboard())
+    bot.reply_to(message, "🇺🇸 جاري فحص الأسهم الأمريكية وإظهار نتائجها...", reply_markup=get_main_keyboard())
     
     matched = []
     for symbol in US_CHEAP_WATCHLIST:
@@ -300,11 +320,10 @@ def verified_us_scan(message):
 
     bot.send_message(message.chat.id, "🇺🇸 **الفرص المؤكدة في السوق الأمريكي:**", reply_markup=markup)
 
-# --- استوكاستيك السعودي مع ظهور اسم الشركة بجانب الرقم ---
 @bot.message_handler(func=lambda message: message.text and "استوكاستيك السعودي" in message.text)
 def tadawul_stochastic_scan(message):
     save_user(message)
-    bot.reply_to(message, "🇸🇦 جاري مسح الأسهم في قاع التشبع البيعي مع أسمائها...", reply_markup=get_main_keyboard())
+    bot.reply_to(message, "🇸🇦 جاري مسح الأسهم في قاع التشبع البيعي مع أسمائها العربية...", reply_markup=get_main_keyboard())
     matched = []
     for symbol in TADAWUL_WATCHLIST:
         df = get_stock_data(symbol, interval="1d")
@@ -321,7 +340,7 @@ def tadawul_stochastic_scan(message):
     markup = types.InlineKeyboardMarkup(row_width=1)
     for comp_name, clean_sym, full_sym, stoch in matched:
         markup.add(types.InlineKeyboardButton(f"🇸🇦 {comp_name} ({clean_sym}) [Stoch: {stoch:.1f}]", callback_data=f"trader_pick_{full_sym}"))
-    bot.send_message(message.chat.id, "📉 **أسهم التشبع البيعي (اسم الشركة + الرمز):**", reply_markup=markup)
+    bot.send_message(message.chat.id, "📉 **أسهم التشبع البيعي (الاسم العربي الصريح):**", reply_markup=markup)
 
 @bot.message_handler(func=lambda message: message.text and ("السوق السعودي اليومي" in message.text or "التحليل الأسبوعي" in message.text))
 def quick_menus(message):
@@ -345,7 +364,7 @@ def handle_trader_pick(call):
     comp_name = get_company_name(symbol)
     currency = "$" if not symbol.endswith(".SR") else "ريال"
     
-    bot.answer_callback_query(call.id, text=f"جاري جلب التحليل فائق الوضوح لـ {comp_name}...")
+    bot.answer_callback_query(call.id, text=f"جاري جلب التحليل لـ {comp_name}...")
     df = get_stock_data(symbol, interval="1d")
     if df is None or df.empty:
         bot.send_message(call.message.chat.id, f"❌ تعذر جلب بيانات السهم.")
@@ -364,7 +383,7 @@ def handle_trader_pick(call):
     stop_loss = round(last_close * 0.94, 4) if last_close < 1 else round(last_close * 0.945, 2)
     
     report = (
-        f"🎯 **تقرير الصفقات المؤكدة الشامل:**\n\n"
+        f"🎯 **تقرير الصفقات المؤكدة (الاسم العربي الصريح):**\n\n"
         f"📊 **الشركة:** `{comp_name}` (`{clean_sym}`)\n\n"
         f"• **السعر الحالي:** {last_close:.4f} {currency}\n"
         f"• **التغير:** {'+' if change >= 0 else ''}{change:.4f} ({change_pct:.2f}%)\n\n"
@@ -465,9 +484,9 @@ def handle_context_aware_message(message):
             f"• **التغير:** {'+' if change >= 0 else ''}{change:.4f} ({change_pct:.2f}%)\n\n"
             f"🎯 **مستويات الدعم والهدف:**\n"
             f"• 🟢 **منطقة الشراء (مظللة أخضر ع الشارت):** ({buy_low} - {buy_high}) {currency}\n"
-            f"• 🎯 **الهدف الأول:** {t1} {currency} | **الهدف الثاني:** {t2} {currency}\n"
+            f"• 🎯 **الهدف الأول:** t1 {currency} | **الهدف الثاني:** t2 {currency}\n"
             f"• 🛑 **وقف الخسارة:** {stop} {currency}\n\n"
-            f"📉 **مؤشر Stoch (5,3,3):** **{round(last_stoxh if 'last_stoxh' in locals() else last_stoch, 1)}**"
+            f"📉 **مؤشر Stoch (5,3,3):** **{round(last_stoch, 1)}**"
         )
         
         chart_path = generate_professional_chart(df, target_symbol, interval="1d", entry_low=buy_low, entry_high=buy_high)
@@ -480,5 +499,5 @@ if __name__ == "__main__":
     flask_thread = threading.Thread(target=run_flask)
     flask_thread.daemon = True
     flask_thread.start()
-    print("Ultra-Clear Sniper Bot is running successfully...")
+    print("Ultra-Clear Sniper Bot with Arabic Names is running successfully...")
     bot.infinity_polling()
