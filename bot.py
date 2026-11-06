@@ -18,7 +18,7 @@ app = Flask(__name__)
 
 @app.route('/')
 def home():
-    return "Market Separated Sniper Bot is active 24/7!", 200
+    return "Advanced Sniper Bot with Weekly Dividends & Watchlists is active 24/7!", 200
 
 def run_flask():
     port = int(os.environ.get("PORT", 10000))
@@ -54,7 +54,7 @@ TADAWUL_NAMES = {
     "2310.SR": "سبكيم العالمية",
     "3030.SR": "الاسمنت السعودية",
     "3050.SR": "الأسمنت العربية",
-    "5110.SR": "الكهرباء السعودية",  # تم التصحيح بدقة إلى الرمز الصحيح
+    "5110.SR": "الكهرباء السعودية",
     "4050.SR": "الباحة",
     "4190.SR": "جرير",
     "6010.SR": "نقي",
@@ -116,7 +116,7 @@ def get_company_name(symbol):
     except:
         return symbol.replace('.SR', '')
 
-def calculate_daytrading_indicators(df):
+def calculate_indicators(df):
     df['EMA50'] = df['Close'].ewm(span=50, adjust=False).mean()
     sma20 = df['Close'].rolling(window=20).mean()
     std20 = df['Close'].rolling(window=20).std()
@@ -137,7 +137,7 @@ def calculate_daytrading_indicators(df):
     df['Vol_SMA20'] = df['Volume'].rolling(window=20).mean()
     
     df['Bottom_Sniper'] = False
-    df['Day_Momentum'] = False
+    df['Weekly_Oversold'] = False
     
     for i in range(2, len(df)):
         k_prev = df['Stoch_K'].iloc[i-1]
@@ -150,9 +150,6 @@ def calculate_daytrading_indicators(df):
         sig_prev = df['Signal'].iloc[i-1]
         sig_curr = df['Signal'].iloc[i]
         
-        vol_curr = df['Volume'].iloc[i]
-        vol_sma = df['Vol_SMA20'].iloc[i] if not pd.isna(df['Vol_SMA20'].iloc[i]) else vol_curr
-        
         stoch_from_oversold = (k_prev <= 25) or (d_prev <= 25)
         stoch_crossover = (k_prev <= d_prev) and (k_curr > d_curr) and stoch_from_oversold
         macd_crossover = (macd_prev <= sig_prev) and (macd_curr > sig_curr)
@@ -160,18 +157,19 @@ def calculate_daytrading_indicators(df):
         if stoch_crossover and macd_crossover:
             df.iat[i, df.columns.get_loc('Bottom_Sniper')] = True
             
-        if (k_prev <= d_prev) and (k_curr > d_curr) and (vol_curr > vol_sma * 1.1):
-            df.iat[i, df.columns.get_loc('Day_Momentum')] = True
+        # فحص التشبع الأسبوعي (Stoch K < 30 صعوداً مع استقرار)
+        if k_curr <= 30 and k_curr > k_prev:
+            df.iat[i, df.columns.get_loc('Weekly_Oversold')] = True
 
 def get_stock_data(symbol, interval="1d"):
     try:
         ticker = yf.Ticker(symbol)
-        period = "6mo" if interval == "1d" else "1y"
+        period = "1y" if interval == "1wk" else "6mo"
         df = ticker.history(period=period, interval=interval)
         if df is None or df.empty or len(df) < 10:
             return None
         df = df.dropna(subset=['Close'])
-        calculate_daytrading_indicators(df)
+        calculate_indicators(df)
         return df
     except Exception as e:
         print(f"Error fetching {symbol}: {e}")
@@ -179,7 +177,7 @@ def get_stock_data(symbol, interval="1d"):
 
 def generate_professional_chart(df, symbol, interval="1d", entry_low=None, entry_high=None):
     fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(12, 13), sharex=True, gridspec_kw={'height_ratios': [3.2, 1.2, 1.2]})
-    tf_name = "الإطار الأسبوعي (Weekly)" if interval == "1wk" else "الإطار اليومي للمضاربة (Daily)"
+    tf_name = "الإطار الأسبوعي الاستثماري (Weekly)" if interval == "1wk" else "الإطار اليومي للمضاربة (Daily)"
     clean_symbol = symbol.replace('.SR', '')
     comp_name = get_company_name(symbol)
     
@@ -196,14 +194,14 @@ def generate_professional_chart(df, symbol, interval="1d", entry_low=None, entry
     ax1.plot(df.index, df['BB_UP'], label='بولينجر العلوي', color='#9ca3af', linestyle=':', alpha=0.8)
     ax1.plot(df.index, df['BB_DOWN'], label='بولينجر السفلي', color='#9ca3af', linestyle=':', alpha=0.8)
     
-    signals = df[(df['Bottom_Sniper'] == True) | (df['Day_Momentum'] == True)]
+    signals = df[(df['Bottom_Sniper'] == True) | (df['Weekly_Oversold'] == True)]
     if not signals.empty:
-        ax1.scatter(signals.index, signals['Low'] * 0.985, marker='^', color='#22c55e', s=160, zorder=5, label='فرصة شراء الآن 🎯')
+        ax1.scatter(signals.index, signals['Low'] * 0.985, marker='^', color='#22c55e', s=160, zorder=5, label='فرصة بناء مركز آمن 🎯')
 
     if entry_low and entry_high:
-        ax1.axhspan(entry_low, entry_high, color='#22c55e', alpha=0.3, label='منطقة الدخول الموصى بها')
+        ax1.axhspan(entry_low, entry_high, color='#22c55e', alpha=0.3, label='منطقة التجميع الموصى بها')
 
-    ax1.set_title(f"فرصة شراء الآن | {comp_name} [{clean_symbol}] - {tf_name}", fontsize=14, fontweight='bold', color='white', pad=12)
+    ax1.set_title(f"تحليل الفرصة | {comp_name} [{clean_symbol}] - {tf_name}", fontsize=14, fontweight='bold', color='white', pad=12)
     ax1.set_ylabel("السعر", color='white', fontsize=11, fontweight='bold')
     leg1 = ax1.legend(loc='upper left', facecolor='#1f2937', edgecolor='none', fontsize=9)
     for text in leg1.get_texts():
@@ -238,8 +236,9 @@ def get_main_keyboard():
     markup.add(
         types.KeyboardButton("🇸🇦 رادار السوق السعودي (فرصة شراء الآن)"),
         types.KeyboardButton("🇺🇸 رادار السوق الأمريكي (فرصة شراء الآن)"),
+        types.KeyboardButton("📊 أسهم العوائد والتشبع الأسبوعي (استثماري آمن)"),
         types.KeyboardButton("📈 السوق السعودي اليومي"),
-        types.KeyboardButton("📅 التحليل الأسبوعي"),
+        types.KeyboardButton("📅 التحليل الأسبوعي العام"),
         types.KeyboardButton("🔗 رابط دعوتي والترشيح"),
         types.KeyboardButton("⚙️ المساعدة والدليل")
     )
@@ -260,25 +259,25 @@ def send_welcome(message):
     ref_link = f"https://t.me/{bot_info.username}?start=REF_{user_id}"
     
     text = (
-        "⚡ **منصة القنص الفوري والمضاربة اليومية**\n\n"
-        "• اختر السوق المطلوبة من الأزرار البارزة أدناه لاصطياد الفرص الذهبية.\n"
+        "⚡ **منصة القنص الاستثماري والمضاربة الذكية**\n\n"
+        "• تم تفعيل أوامر البدء تلقائياً لخدمتك.\n"
         "• **رابط دعوتك الخاص:**\n"
         f"`{ref_link}`\n\n"
-        "👇 **الأزرار الرئيسية:**"
+        "👇 **اختر من الأزرار البارزة أدناه:**"
     )
     bot.reply_to(message, text, parse_mode="Markdown", reply_markup=get_main_keyboard())
 
-# --- رادار السوق السعودي ---
-@bot.message_handler(func=lambda message: message.text and "رادار السوق السعودي" in message.text)
-def tadawul_market_scan(message):
+# --- رادار أسهم العوائد والتشبع الأسبوعي ---
+@bot.message_handler(func=lambda message: message.text and "أسهم العوائد والتشبع الأسبوعي" in message.text)
+def weekly_dividends_scan(message):
     save_user(message)
-    bot.reply_to(message, "🇸🇦 جاري فحص الأسهم **السعودية** واصطياد فرص قنص القاع والزخم اللحظي...", reply_markup=get_main_keyboard())
+    bot.reply_to(message, "📊 جاري فحص الإطار الأسبوعي للأسهم القيادية واصطياد فرص بناء المراكز الآمنة...", reply_markup=get_main_keyboard())
     
     matched = []
     for symbol in TADAWUL_WATCHLIST:
-        df = get_stock_data(symbol, interval="1d")
-        if df is not None and not df.empty and 'Bottom_Sniper' in df.columns:
-            if df['Bottom_Sniper'].iloc[-1] or df['Bottom_Sniper'].iloc[-2] or df['Day_Momentum'].iloc[-1]:
+        df = get_stock_data(symbol, interval="1wk")
+        if df is not None and not df.empty and 'Weekly_Oversold' in df.columns:
+            if df['Weekly_Oversold'].iloc[-1] or df['Weekly_Oversold'].iloc[-2]:
                 clean_sym = symbol.replace('.SR', '')
                 comp_name = get_company_name(symbol)
                 last_close = float(df['Close'].iloc[-1])
@@ -288,7 +287,37 @@ def tadawul_market_scan(message):
                     break
 
     if not matched:
-        bot.reply_to(message, "❌ لا توجد فرص شراء حالياً في السوق السعودي تطابق المعايير الصارمة.", reply_markup=get_main_keyboard())
+        bot.reply_to(message, "❌ لا توجد أسهم قيادية في منطقة التشبع الأسبوعي حالياً.", reply_markup=get_main_keyboard())
+        return
+
+    markup = types.InlineKeyboardMarkup(row_width=1)
+    for comp_name, clean_sym, full_sym, price, stoch in matched:
+        btn_text = f"📊 {comp_name} ({clean_sym}) [Stoch W: {stoch:.1f}] - فرصة استثمارية آمنة"
+        markup.add(types.InlineKeyboardButton(btn_text, callback_data=f"trader_pick_{full_sym}"))
+
+    bot.send_message(message.chat.id, "🛡️ **فرص بناء المراكز الاستثمارية طويلة الأجل (تشبع أسبوعي):**", reply_markup=markup)
+
+# --- رادار السوق السعودي ---
+@bot.message_handler(func=lambda message: message.text and "رادار السوق السعودي" in message.text)
+def tadawul_market_scan(message):
+    save_user(message)
+    bot.reply_to(message, "🇸🇦 جاري فحص الأسهم السعودية...", reply_markup=get_main_keyboard())
+    
+    matched = []
+    for symbol in TADAWUL_WATCHLIST:
+        df = get_stock_data(symbol, interval="1d")
+        if df is not None and not df.empty and 'Bottom_Sniper' in df.columns:
+            if df['Bottom_Sniper'].iloc[-1] or df['Bottom_Sniper'].iloc[-2]:
+                clean_sym = symbol.replace('.SR', '')
+                comp_name = get_company_name(symbol)
+                last_close = float(df['Close'].iloc[-1])
+                stoch_val = float(df['Stoch_K'].iloc[-1])
+                matched.append((comp_name, clean_sym, symbol, last_close, stoch_val))
+                if len(matched) >= 6:
+                    break
+
+    if not matched:
+        bot.reply_to(message, "❌ لا توجد فرص شراء حالياً تطابق الشروط الصارمة.", reply_markup=get_main_keyboard())
         return
 
     markup = types.InlineKeyboardMarkup(row_width=1)
@@ -296,19 +325,19 @@ def tadawul_market_scan(message):
         btn_text = f"🇸🇦 {comp_name} ({clean_sym}) [Stoch: {stoch:.1f}] - فرصة شراء الآن"
         markup.add(types.InlineKeyboardButton(btn_text, callback_data=f"trader_pick_{full_sym}"))
 
-    bot.send_message(message.chat.id, "🇸🇦 **فرص الشراء الآن في السوق السعودي:**", reply_markup=markup)
+    bot.send_message(message.chat.id, "🇸🇦 **فرص الشراء اللحظي في السوق السعودي:**", reply_markup=markup)
 
 # --- رادار السوق الأمريكي ---
 @bot.message_handler(func=lambda message: message.text and "رادار السوق الأمريكي" in message.text)
 def us_market_scan(message):
     save_user(message)
-    bot.reply_to(message, "🇺🇸 جاري فحص الأسهم **الأمريكية** واصطياد فرص قنص القاع والزخم اللحظي...", reply_markup=get_main_keyboard())
+    bot.reply_to(message, "🇺🇸 جاري فحص الأسهم الأمريكية...", reply_markup=get_main_keyboard())
     
     matched = []
     for symbol in US_CHEAP_WATCHLIST:
         df = get_stock_data(symbol, interval="1d")
         if df is not None and not df.empty and 'Bottom_Sniper' in df.columns:
-            if df['Bottom_Sniper'].iloc[-1] or df['Bottom_Sniper'].iloc[-2] or df['Day_Momentum'].iloc[-1]:
+            if df['Bottom_Sniper'].iloc[-1] or df['Bottom_Sniper'].iloc[-2]:
                 comp_name = get_company_name(symbol)
                 last_close = float(df['Close'].iloc[-1])
                 stoch_val = float(df['Stoch_K'].iloc[-1])
@@ -317,7 +346,7 @@ def us_market_scan(message):
                     break
 
     if not matched:
-        bot.reply_to(message, "❌ لا توجد فرص شراء حالياً في السوق الأمريكي تطابق المعايير.", reply_markup=get_main_keyboard())
+        bot.reply_to(message, "❌ لا توجد فرص شراء حالياً تطابق الشروط.", reply_markup=get_main_keyboard())
         return
 
     markup = types.InlineKeyboardMarkup(row_width=1)
@@ -325,7 +354,7 @@ def us_market_scan(message):
         btn_text = f"🇺🇸 {comp_name} ({clean_sym}) [Stoch: {stoch:.1f}] - فرصة شراء الآن"
         markup.add(types.InlineKeyboardButton(btn_text, callback_data=f"trader_pick_{full_sym}"))
 
-    bot.send_message(message.chat.id, "🇺🇸 **فرص الشراء الآن في السوق الأمريكي:**", reply_markup=markup)
+    bot.send_message(message.chat.id, "🇺🇸 **فرص الشراء في السوق الأمريكي:**", reply_markup=markup)
 
 @bot.message_handler(func=lambda message: message.text and "السوق السعودي اليومي" in message.text)
 def daily_market_menu(message):
@@ -333,16 +362,16 @@ def daily_market_menu(message):
     symbol = "1120.SR"
     df = get_stock_data(symbol, interval="1d")
     if df is None:
-        bot.reply_to(message, "❌ تعذر جلب بيانات المؤشر.", reply_markup=get_main_keyboard())
+        bot.reply_to(message, "❌ تعذر جلب البيانات.", reply_markup=get_main_keyboard())
         return
     last_close = float(df['Close'].iloc[-1])
     comp_name = get_company_name(symbol)
-    response = f"📊 **المؤشر القياسي ({comp_name} - الإطار اليومي):**\n• السعر الحالي: {round(last_close, 2)} ريال"
+    response = f"📊 **المؤشر القياسي ({comp_name}):**\n• السعر: {round(last_close, 2)} ريال"
     chart_path = generate_professional_chart(df, symbol, interval="1d")
     with open(chart_path, 'rb') as photo:
         bot.send_photo(message.chat.id, photo, caption=response, parse_mode="Markdown", reply_markup=get_inline_keyboard(symbol))
 
-@bot.message_handler(func=lambda message: message.text and "التحليل الأسبوعي" in message.text)
+@bot.message_handler(func=lambda message: message.text and "التحليل الأسبوعي العام" in message.text)
 def weekly_market_menu(message):
     save_user(message)
     symbol = "1120.SR"
@@ -352,7 +381,7 @@ def weekly_market_menu(message):
         return
     last_close = float(df['Close'].iloc[-1])
     comp_name = get_company_name(symbol)
-    response = f"📆 **التحليل الأسبوعي ({comp_name}):**\n• السعر الحالي: {round(last_close, 2)} ريال"
+    response = f"📆 **التحليل الأسبوعي العام ({comp_name}):**\n• السعر: {round(last_close, 2)} ريال"
     chart_path = generate_professional_chart(df, symbol, interval="1wk")
     with open(chart_path, 'rb') as photo:
         bot.send_photo(message.chat.id, photo, caption=response, parse_mode="Markdown", reply_markup=get_inline_keyboard(symbol))
@@ -373,9 +402,9 @@ def send_help(message):
     save_user(message)
     text = (
         "⚙️ **دليل الأزرار والوظائف:**\n"
-        "1️⃣ **رادار السوق السعودي:** يفحص أسهم تداول لاصطياد فرص قنص القاع (فرصة شراء الآن).\n"
-        "2️⃣ **رادار السوق الأمريكي:** يفحص الأسهم الأمريكية وفق نفس الاستراتيجية.\n"
-        "3️⃣ **البحث المباشر:** أرسل رقم أو رمز أي سهم في أي وقت لتحليل شارتة الفوري."
+        "1️⃣ **رادار السوق السعودي:** للمضاربة اللحظية.\n"
+        "2️⃣ **أسهم العوائد والتشبع الأسبوعي:** للاستثمار آمن المدى.\n"
+        "3️⃣ **البحث المباشر:** أرسل رمز أو رقم أي سهم في أي وقت."
     )
     bot.reply_to(message, text, parse_mode="Markdown", reply_markup=get_main_keyboard())
 
@@ -387,7 +416,7 @@ def handle_trader_pick(call):
     comp_name = get_company_name(symbol)
     currency = "$" if not symbol.endswith(".SR") else "ريال"
     
-    bot.answer_callback_query(call.id, text=f"جاري جلب تحليل فرصة الشراء لـ {comp_name}...")
+    bot.answer_callback_query(call.id, text=f"جاري جلب التحليل لـ {comp_name}...")
     df = get_stock_data(symbol, interval="1d")
     if df is None or df.empty:
         bot.send_message(call.message.chat.id, f"❌ تعذر جلب بيانات السهم.")
@@ -410,10 +439,9 @@ def handle_trader_pick(call):
         f"📊 **الشركة:** `{comp_name}` (`{clean_sym}`)\n\n"
         f"• **السعر الحالي:** {last_close:.4f} {currency}\n"
         f"• **التغير اليومي:** {'+' if change >= 0 else ''}{change:.4f} ({change_pct:.2f}%)\n\n"
-        f"🎯 **مستويات الدخول والأهداف:**\n"
+        f"🎯 **مستويات الإدارة:**\n"
         f"• 🟢 **منطقة الشراء:** ({entry_low} - {entry_high}) {currency}\n"
-        f"• 🎯 **الهدف الأول (+3%):** {target_1} {currency}\n"
-        f"• 🎯 **الهدف الثاني (+6%):** {target_2} {currency}\n"
+        f"• 🎯 **الهدف الأول:** {target_1} {currency}\n"
         f"• 🛑 **وقف الخسارة:** {stop_loss} {currency}\n\n"
         f"📉 **مؤشر Stoch:** **{round(last_stoch, 1)}**"
     )
@@ -437,7 +465,6 @@ def handle_tf_callbacks(call):
     with open(chart_path, 'rb') as photo:
         bot.send_photo(call.message.chat.id, photo, caption=response, parse_mode="Markdown", reply_markup=get_inline_keyboard(symbol))
 
-# --- السياق الذكي للبحث المباشر ---
 @bot.message_handler(func=lambda message: True)
 def handle_context_aware_message(message):
     save_user(message)
@@ -476,16 +503,15 @@ def handle_context_aware_message(message):
         buy_low = round(last_close * 0.985, 2) if currency == "ريال" else round(last_close * 0.985, 4)
         buy_high = round(last_close * 1.00, 2) if currency == "ريال" else round(last_close * 1.00, 4)
         t1 = round(last_close * 1.03, 2) if currency == "ريال" else round(last_close * 1.05, 4)
-        t2 = round(last_close * 1.06, 2) if currency == "ريال" else round(last_close * 1.10, 4)
         stop = round(last_close * 0.97, 2) if currency == "ريال" else round(last_close * 0.94, 4)
         
         response = (
             f"🚨 **فرصة شراء الآن للشركة: {comp_name} (`{clean_target}`):**\n\n"
             f"• **السعر الحالي:** {last_close:.4f} {currency}\n"
             f"• **التغير اليومي:** {'+' if change >= 0 else ''}{change:.4f} ({change_pct:.2f}%)\n\n"
-            f"🎯 **مستويات الدخول والأهداف:**\n"
+            f"🎯 **مستويات الإدارة:**\n"
             f"• 🟢 **منطقة الشراء:** ({buy_low} - {buy_high}) {currency}\n"
-            f"• 🎯 **الهدف الأول (+3%):** {t1} {currency} | **الهدف الثاني (+6%):** {t2} {currency}\n"
+            f"• 🎯 **الهدف الأول:** {t1} {currency}\n"
             f"• 🛑 **وقف الخسارة:** {stop} {currency}\n\n"
             f"📉 **مؤشر Stoch:** **{round(last_stoch, 1)}**"
         )
@@ -494,7 +520,7 @@ def handle_context_aware_message(message):
         with open(chart_path, 'rb') as photo:
             bot.send_photo(message.chat.id, photo, caption=response, parse_mode="Markdown", reply_markup=get_inline_keyboard(target_symbol))
     else:
-        bot.reply_to(message, f"🤖 أهلاً بك! اضغط على الأزرار البارزة أعلاه لاختيار السوق المطلوب.", reply_markup=get_main_keyboard())
+        bot.reply_to(message, f"🤖 أهلاً بك! اضغط على الأزرار البارزة أدناه لاختيار السوق أو الرادار المطلوبة.", reply_markup=get_main_keyboard())
 
 # --- دالة الإرسال التلقائي اليومي ---
 def job_auto_market_scan():
@@ -504,7 +530,7 @@ def job_auto_market_scan():
     
     for user_id in users.keys():
         try:
-            bot.send_message(int(user_id), "🔔 **تنبيه تلقائي (بعد ساعة من الافتتاح):** جاري فحص السوق السعودي لاصطياد الفرصة الذهبية...")
+            bot.send_message(int(user_id), "🔔 **تنبيه تلقائي (بعد ساعة من الافتتاح):** جاري فحص السوق لاصطياد الفرصة الذهبية...")
             
             for symbol in TADAWUL_WATCHLIST:
                 df = get_stock_data(symbol, interval="1d")
@@ -518,20 +544,17 @@ def job_auto_market_scan():
                         entry_low = round(last_close * 0.985, 2)
                         entry_high = round(last_close * 1.00, 2)
                         t1 = round(last_close * 1.03, 2)
-                        t2 = round(last_close * 1.06, 2)
                         stop = round(last_close * 0.97, 2)
                         
                         report = (
                             f"🚨 **فرصة شراء الآن (تنبيه تلقائي):**\n\n"
                             f"📊 **الشركة:** `{comp_name}` (`{clean_sym}`)\n\n"
                             f"• **السعر الحالي:** {last_close:.2f} ريال\n"
-                            f"• **نوع الفرصة:** تقاطع استوكاستك من القاع (<20) مع تقاطع الماكد 🎯\n\n"
+                            f"• **نوع الفرصة:** تقاطع استوكاستك من القاع مع الماكد 🎯\n\n"
                             f"🎯 **المستويات الفنية:**\n"
                             f"• 🟢 **منطقة الشراء:** ({entry_low} - {entry_high}) ريال\n"
-                            f"• 🎯 **الهدف الأول (+3%):** {t1} ريال\n"
-                            f"• 🎯 **الهدف الثاني (+6%):** {t2} ريال\n"
-                            f"• 🛑 **وقف الخسارة:** {stop} ريال\n\n"
-                            f"📉 **مؤشر Stoch:** **{round(last_stoch, 1)}**"
+                            f"• 🎯 **الهدف الأول:** {t1} ريال\n"
+                            f"• 🛑 **وقف الخسارة:** {stop} ريال"
                         )
                         
                         chart_path = generate_professional_chart(df, symbol, interval="1d", entry_low=entry_low, entry_high=entry_high)
@@ -556,5 +579,5 @@ if __name__ == "__main__":
     scheduler_thread.daemon = True
     scheduler_thread.start()
     
-    print("Market Separated Sniper Bot is running successfully...")
+    print("Advanced Sniper Bot with Weekly Dividends is running successfully...")
     bot.infinity_polling()
