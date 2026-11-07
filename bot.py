@@ -18,7 +18,7 @@ app = Flask(__name__)
 
 @app.route('/')
 def home():
-    return "Wide-Scan Elite Sniper Bot is active 24/7!", 200
+    return "Dynamic Wide-Scan Sniper Bot is active 24/7!", 200
 
 def run_flask():
     port = int(os.environ.get("PORT", 10000))
@@ -28,49 +28,20 @@ def run_flask():
 TOKEN = "8961540572:AAGLzgU3PwqXopo_BGyai7t4PzJf1cB-eGs"
 bot = telebot.TeleBot(TOKEN)
 
-# قائمة واسعة وموسعة لأسهم السوق السعودي (تداول) بمختلف القطاعات
+# قائمة واسعة ونشطة لأبرز الأسهم السعودية، مع جلب أسماء البقية تلقائياً عند الطلب
 TADAWUL_NAMES = {
-    "1120.SR": "الراجحي",
-    "1180.SR": "الإنماء",
-    "2222.SR": "أرامكو السعودية",
-    "1211.SR": "معادن",
-    "2010.SR": "سابك",
-    "1301.SR": "التنمية الغذائية",
-    "4200.SR": "الدريس",
-    "7010.SR": "إس تي سي",
-    "4300.SR": "دار الأركان",
-    "2380.SR": "بوان",
-    "4001.SR": "أسواق العثيم",
-    "2240.SR": "الزامل للصناعة",
-    "1010.SR": "الرياض",
-    "1020.SR": "الجزيرة",
-    "1150.SR": "الأول",
-    "2020.SR": "سابك للمغذيات",
-    "2280.SR": "المراعي",
-    "2310.SR": "سبكيم العالمية",
-    "3030.SR": "الاسمنت السعودية",
-    "5110.SR": "الكهرباء السعودية",
-    "4190.SR": "جرير",
-    "7020.SR": "اتحاد عذيب",
-    "1080.SR": "البلد",
-    "1110.SR": "الاستثمار",
-    "1212.SR": "البحر الأحمر",
-    "1830.SR": "سينومي ريتيل",
-    "2080.SR": "بيشة",
-    "2150.SR": "الأسماك",
-    "2160.SR": "مفكو",
-    "2170.SR": "الوطنية للتعليم",
-    "2220.SR": "الماجدية",
-    "2230.SR": "قزاز",
-    "3001.SR": "أسمنت العربية",
-    "3002.SR": "أسمنت اليمامة",
-    "3003.SR": "أسمنت السعودية",
-    "3004.SR": "أسمنت القصيم",
-    "3005.SR": "أسمنت الجنوب",
-    "4002.SR": "المواساة",
-    "4003.SR": "الشرقية للتنمية",
-    "4004.SR": "دله الصحية",
-    "4005.SR": "سليمان الحبيب"
+    "1120.SR": "الراجحي", "1180.SR": "الإنماء", "2222.SR": "أرامكو السعودية",
+    "1211.SR": "معادن", "2010.SR": "سابك", "1301.SR": "التنمية الغذائية",
+    "4200.SR": "الدريس", "7010.SR": "إس تي سي", "4300.SR": "دار الأركان",
+    "2380.SR": "بوان", "4001.SR": "أسواق العثيم", "2240.SR": "الزامل للصناعة",
+    "1010.SR": "الرياض", "1020.SR": "الجزيرة", "1150.SR": "الأول",
+    "2020.SR": "سابك للمغذيات", "2280.SR": "المراعي", "2310.SR": "سبكيم العالمية",
+    "3030.SR": "الاسمنت السعودية", "5110.SR": "الكهرباء السعودية", "4190.SR": "جرير",
+    "7020.SR": "اتحاد عذيب", "4002.SR": "المواساة", "4004.SR": "دله الصحية",
+    "4005.SR": "سليمان الحبيب", "1830.SR": "سينومي ريتيل", "4210.SR": "باتك",
+    "4230.SR": "عبدالمحسن الحكير", "4250.SR": "مروج الوسمي", "4260.SR": "برغライز",
+    "4280.SR": "كير", "4321.SR": "الوطنية للتسويق", "6001.SR": "باتك",
+    "6002.SR": "سابتكو", "6004.SR": "تكوين", "6020.SR": "الجوف الزراعية"
 }
 
 TADAWUL_WATCHLIST = list(TADAWUL_NAMES.keys())
@@ -122,10 +93,10 @@ def get_company_name(symbol):
     try:
         t = yf.Ticker(symbol)
         info = t.info
-        name = info.get('longName') or info.get('shortName') or symbol
+        name = info.get('longName') or info.get('shortName') or symbol.replace('.SR', '')
         return name
     except:
-        return symbol
+        return symbol.replace('.SR', '')
 
 def calculate_indicators(df):
     df['EMA50'] = df['Close'].ewm(span=50, adjust=False).mean()
@@ -268,7 +239,7 @@ def send_welcome(message):
     
     text = (
         "⚡ **منصة قنص القيعان الذكية (الفحص الواسع والشامل)**\n\n"
-        "• يغطي الرادار الآن شريحة واسعة وموسعة من أسهم السوق السعودي والأمريكي.\n"
+        "• يدعم البوت فحص الأسهم النشطة والبحث الحر بأي رقم سهم تريده.\n"
         "• العمل آلي بالكامل ويرسل التنبيهات من تلقاء نفسه.\n\n"
         "• **رابط دعوتك الخاص:**\n"
         f"`{ref_link}`\n\n"
@@ -280,7 +251,7 @@ def send_welcome(message):
 @bot.message_handler(func=lambda message: message.text and "رادار قنص القاع السعودي الشامل" in message.text)
 def tadawul_market_scan(message):
     save_user(message)
-    bot.reply_to(message, "🇸🇦 جاري الفحص الشامل لجميع أسهم القطاعات السعودية لاصطياد قيعان الدخول...", reply_markup=get_main_keyboard())
+    bot.reply_to(message, "🇸🇦 جاري الفحص الشامل لأسهم السوق السعودي لاصطياد قيعان الدخول...", reply_markup=get_main_keyboard())
     
     matched = []
     for symbol in TADAWUL_WATCHLIST:
@@ -338,7 +309,7 @@ def us_bottom_sniper_scan(message):
 @bot.message_handler(func=lambda message: message.text and "أسهم العوائد والتشبع الأسبوعي" in message.text)
 def weekly_dividends_scan(message):
     save_user(message)
-    bot.reply_to(message, "📊 جاري فحص الإطار الأسبوعي الاستثماري على نطاق واسع...", reply_markup=get_main_keyboard())
+    bot.reply_to(message, "📊 جاري فحص الإطار الأسبوعي الاستثماري...", reply_markup=get_main_keyboard())
     
     matched = []
     for symbol in TADAWUL_WATCHLIST:
@@ -362,7 +333,7 @@ def weekly_dividends_scan(message):
         btn_text = f"📊 {comp_name} ({clean_sym}) [Stoch W: {stoch:.1f}] - استثمار آمن"
         markup.add(types.InlineKeyboardButton(btn_text, callback_data=f"trader_pick_{full_sym}"))
 
-    bot.send_message(message.chat.id, "🛡️ **فرص بناء المراكز الاستثمارية (تشبع أسبوعي واسع):**", reply_markup=markup)
+    bot.send_message(message.chat.id, "🛡️ **فرص بناء المراكز الاستثمارية (تشبع أسبوعي):**", reply_markup=markup)
 
 @bot.message_handler(func=lambda message: message.text and "المؤشر العام للسوق السعودي" in message.text)
 def daily_market_menu(message):
@@ -395,8 +366,7 @@ def send_help(message):
     save_user(message)
     text = (
         "⚙️ **دليل النظام الاحترافي:**\n"
-        "• تم توسيع نطاق البحث ليشمل باقة واسعة وموسعة من أسهم السوق السعودي والأمريكي.\n"
-        "• يمكنك إرسال رقم أو رمز أي سهم (مثل `1180` أو `1211` أو أي سهم تريده) لتحليله فوراً بغض النظر عن القائمة."
+        "• يمكنك إرسال رقم أو رمز **أي سهم** في السوق السعودي (مثل `1180` أو `1211` أو أي رقم سهم آخر) أو الأمريكي في أي وقت، وسيقوم البوت بجلب اسمه وتحليله فوراً دون التقيد بالقائمة المسبقة."
     )
     bot.reply_to(message, text, parse_mode="Markdown", reply_markup=get_main_keyboard())
 
@@ -478,7 +448,7 @@ def handle_context_aware_message(message):
         comp_name = get_company_name(target_symbol)
         currency = "$" if not target_symbol.endswith(".SR") else "ريال"
         
-        bot.reply_to(message, f"⏳ جاري تجهيز الشارت النظيف والتقرير الفني الشامل لـ `{comp_name}`...", reply_markup=get_main_keyboard())
+        bot.reply_to(message, f"⏳ جاري تجهيز الشارت النظيف والتقرير الفني لـ `{comp_name}`...", reply_markup=get_main_keyboard())
         df = get_stock_data(target_symbol, interval="1d")
         
         if df is None or df.empty:
@@ -511,9 +481,9 @@ def handle_context_aware_message(message):
         with open(chart_path, 'rb') as photo:
             bot.send_photo(message.chat.id, photo, caption=response, parse_mode="Markdown", reply_markup=get_inline_keyboard(target_symbol))
     else:
-        bot.reply_to(message, f"🤖 أهلاً بك! يمكنك إرسال رقم أو رمز أي سهم (مثل 1180 أو 1211) في أي وقت لتحليله فوراً.", reply_markup=get_main_keyboard())
+        bot.reply_to(message, f"🤖 أهلاً بك! يمكنك إرسال رقم أو رمز أي سهم في السوق السعودي أو الأمريكي في أي وقت لتحليله فوراً.", reply_markup=get_main_keyboard())
 
-# --- دالة الإرسال التلقائي اليومي الشامل ---
+# --- دالة الإرسال التلقائي اليومي ---
 def job_auto_market_scan():
     users = load_users()
     if not users:
@@ -521,7 +491,7 @@ def job_auto_market_scan():
     
     for user_id in users.keys():
         try:
-            bot.send_message(int(user_id), "🔔 **تنبيه تلقائي من الرادار الشامل:** جاري فحص السوق لاصطياد الفرصة المؤكدة...")
+            bot.send_message(int(user_id), "🔔 **تنبيه تلقائي:** جاري فحص السوق لاصطياد الفرصة المؤكدة...")
             
             for symbol in TADAWUL_WATCHLIST:
                 df = get_stock_data(symbol, interval="1d")
@@ -538,7 +508,7 @@ def job_auto_market_scan():
                         stop = round(last_close * 0.97, 2)
                         
                         report = (
-                            f"🎯 **فرصة دخول مؤكدة (تنبيه آلي واسع):**\n\n"
+                            f"🎯 **فرصة دخول مؤكدة (تنبيه آلي):**\n\n"
                             f"📊 **الشركة:** `{comp_name}` (`{clean_sym}`)\n\n"
                             f"• **السعر الحالي:** {last_close:.2f} ريال\n"
                             f"• **نوع الفرصة:** قاع حقيقي ونظيف 🎯\n\n"
@@ -570,5 +540,5 @@ if __name__ == "__main__":
     scheduler_thread.daemon = True
     scheduler_thread.start()
     
-    print("Wide-Scan Professional Sniper Bot is running successfully...")
+    print("Dynamic Wide-Scan Sniper Bot is running successfully...")
     bot.infinity_polling()
